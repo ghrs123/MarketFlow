@@ -19,4 +19,8 @@ public interface OrderRepository {
     Optional<Order> findById(UUID id);
 
     List<Order> findAll();
+
+    List<Order> findByFilters(String clientId, OrderStatus status, int page, int size);
+
+    long countByFilters(String clientId, OrderStatus status);
 }

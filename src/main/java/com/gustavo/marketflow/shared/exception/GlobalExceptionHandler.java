@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -91,6 +92,17 @@ public class GlobalExceptionHandler {
                 ex.getMessage());
         problem.setTitle("Invalid argument");
         problem.setType(URI.create("https://marketflow.local/errors/invalid-argument"));
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ProblemDetail handleOptimisticLocking(ObjectOptimisticLockingFailureException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "The resource was modified concurrently. Refresh and retry.");
+        problem.setTitle("Optimistic locking conflict");
+        problem.setType(URI.create("https://marketflow.local/errors/optimistic-locking"));
         problem.setProperty("timestamp", Instant.now().toString());
         return problem;
     }

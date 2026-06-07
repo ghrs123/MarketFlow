@@ -117,4 +117,64 @@ public class LearningController {
         ));
         return body;
     }
+
+        @GetMapping("/jpa/lazy-vs-eager")
+        public Map<String, Object> jpaLazyVsEager() {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "JPA: LAZY vs EAGER");
+                body.put("notes", List.of(
+                                "Default to LAZY and fetch explicitly for the current use case.",
+                                "EAGER often causes hidden query cost and over-fetching.",
+                                "Use fetch joins or dedicated projections to avoid N+1 in read paths."
+                ));
+                return body;
+        }
+
+        @GetMapping("/jpa/n-plus-one")
+        public Map<String, Object> jpaNPlusOne() {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "JPA: N+1 query problem");
+                body.put("notes", List.of(
+                                "N+1 appears when one query loads parents and additional queries load each child.",
+                                "Detect through SQL logs and query counts in integration tests.",
+                                "Mitigate using fetch join, @EntityGraph or optimized projection queries."
+                ));
+                return body;
+        }
+
+        @GetMapping("/transactions")
+        public Map<String, Object> transactions() {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "Spring transactions");
+                body.put("notes", List.of(
+                                "Put @Transactional on service methods, not on controllers.",
+                                "One order creation should persist order + history atomically.",
+                                "Runtime exceptions trigger rollback by default."
+                ));
+                return body;
+        }
+
+        @GetMapping("/transactions/self-invocation")
+        public Map<String, Object> transactionsSelfInvocation() {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "@Transactional self-invocation");
+                body.put("notes", List.of(
+                                "Spring applies @Transactional through proxies.",
+                                "Calling a @Transactional method from inside the same class bypasses the proxy.",
+                                "Extract transactional logic to another bean when proxy interception is required."
+                ));
+                return body;
+        }
+
+        @GetMapping("/hibernate/dirty-checking")
+        public Map<String, Object> hibernateDirtyChecking() {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "Hibernate dirty checking");
+                body.put("notes", List.of(
+                                "Managed entities are tracked inside the persistence context.",
+                                "Field changes are detected and flushed on commit.",
+                                "Use transactional boundaries deliberately to control when changes are persisted."
+                ));
+                return body;
+        }
 }

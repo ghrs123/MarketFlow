@@ -1,14 +1,20 @@
 package com.gustavo.marketflow.order.application;
 
 import com.gustavo.marketflow.order.domain.Order;
+import com.gustavo.marketflow.order.domain.OrderHistory;
+import com.gustavo.marketflow.order.domain.OrderHistoryRepository;
+import com.gustavo.marketflow.order.domain.OrderPage;
 import com.gustavo.marketflow.order.domain.OrderRepository;
 import com.gustavo.marketflow.order.domain.OrderSide;
+import com.gustavo.marketflow.order.domain.OrderStatus;
 import com.gustavo.marketflow.shared.exception.OrderNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,11 +37,15 @@ public class OrderApplicationService {
     private static final Logger log = LoggerFactory.getLogger(OrderApplicationService.class);
 
     private final OrderRepository orderRepository;
+    private final OrderHistoryRepository orderHistoryRepository;
 
-    public OrderApplicationService(OrderRepository orderRepository) {
+    public OrderApplicationService(OrderRepository orderRepository,
+                                   OrderHistoryRepository orderHistoryRepository) {
         this.orderRepository = orderRepository;
+        this.orderHistoryRepository = orderHistoryRepository;
     }
 
+    @Transactional
     public Order createOrder(String clientId,
                              String symbol,
                              OrderSide side,
@@ -43,18 +53,48 @@ public class OrderApplicationService {
                              BigDecimal price) {
         Order order = Order.createNew(clientId, symbol, side, quantity, price);
         Order saved = orderRepository.save(order);
+        orderHistoryRepository.save(new OrderHistory(
+                UUID.randomUUID(),
+                saved.getId(),
+                "ORDER_CREATED",
+                null,
+                saved.getStatus(),
+                Instant.now(),
+                null,
+                Instant.now()
+        ));
         log.info("Order created id={} clientId={} symbol={} side={} qty={} price={}",
                 saved.getId(), saved.getClientId(), saved.getSymbol(),
                 saved.getSide(), saved.getQuantity(), saved.getPrice());
         return saved;
     }
 
+    @Transactional(readOnly = true)
     public Order findById(UUID id) {
         return orderRepository.findById(id)
                 .orElseThrow(() -> new OrderNotFoundException(id));
     }
 
+    @Transactional(readOnly = true)
     public List<Order> findAll() {
         return orderRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public OrderPage findByFilters(String clientId,
+                                   OrderStatus status,
+                                   int page,
+                                   int size) {
+        List<Order> content = orderRepository.findByFilters(clientId, status, page, size);
+        long totalElements = orderRepository.countByFilters(clientId, status);
+        int totalPages = (int) Math.ceil((double) totalElements / size);
+        return new OrderPage(content, page, size, totalElements, totalPages);
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrderHistory> findHistoryByOrderId(UUID orderId) {
+        orderRepository.findById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+        return orderHistoryRepository.findByOrderId(orderId);
     }
 }
