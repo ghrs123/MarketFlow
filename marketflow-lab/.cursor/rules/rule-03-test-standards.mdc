@@ -1,0 +1,60 @@
+---
+alwaysApply: true
+---
+
+# Test File Standards
+# Type: By file path
+# Pattern: **/*Test.java, **/*Tests.java, **/*IT.java
+
+## When generating or editing test files
+
+### Test class structure
+1. Imports
+2. @ExtendWith / @SpringBootTest / @WebMvcTest annotation
+3. Field declarations (mocks, subjects, fixtures)
+4. @BeforeEach setUp()
+5. @AfterEach tearDown() if needed
+6. Test methods grouped by method under test (use nested classes for complex subjects)
+7. Private helper methods at the bottom
+
+### Test method rules
+- One logical assertion per test (or one cohesive group via assertSoftly)
+- Method name pattern: methodUnderTest_condition_expectedOutcome
+  Example: createOrder_withInvalidPrice_returns400
+- Use @DisplayName for human-readable descriptions when the method name alone is not enough
+- Never share mutable state between tests without a @BeforeEach reset
+
+### What to test
+- Happy path: valid input, expected output
+- Boundary values: zero, negative, max length, empty list
+- Failure paths: not found, validation failure, concurrent access, external dependency down
+- Security paths (where applicable): unauthenticated request, insufficient permissions
+
+### MockMvc tests
+- Use standaloneSetup() for controller slice tests (faster, no full context)
+  MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(globalExceptionHandler).build()
+- Use @SpringBootTest + MockMvc for integration tests that need the full security chain
+- Always assert: status code, response body fields, and response headers when relevant
+- Use jsonPath() assertions, not raw string comparison on the response body
+
+### Mockito rules
+- Use @ExtendWith(MockitoExtension.class) for unit tests, not @RunWith(MockitoJUnitRunner.class)
+- Prefer when().thenReturn() over doReturn().when() for non-void methods
+- Verify interactions only when the interaction itself is the behaviour under test
+- Do not over-mock: if a collaborator is a simple in-memory structure, use the real one
+
+### AssertJ usage
+- assertThat(result).isEqualTo(expected)
+- For collections: hasSize(), containsExactlyInAnyOrder(), allMatch()
+- For exceptions: assertThatThrownBy(() -> ...).isInstanceOf(X.class).hasMessageContaining("...")
+- Use isEqualByComparingTo() for BigDecimal (not isEqualTo, which checks scale too)
+
+### Testcontainers
+- Declare the container as a @Container static field
+- Use @DynamicPropertySource to inject the JDBC URL, username and password into the Spring context
+- Share one container instance per test class with @Testcontainers (static container)
+- Never use H2 for tests that validate PostgreSQL-specific SQL, index behaviour or JPA dialects
+
+### Test data builders
+- For complex domain objects, create a static builder helper (OrderTestData.validOrder(), OrderTestData.invalidOrder()) inside the test package
+- Never duplicate fixture construction across multiple test classes

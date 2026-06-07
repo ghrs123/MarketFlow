@@ -1,0 +1,62 @@
+---
+alwaysApply: true
+---
+
+# Java File Standards
+# Type: By file path
+# Pattern: **/*.java
+
+## When generating or editing any .java file
+
+### Class structure order (always follow this order)
+1. Package declaration
+2. Imports (no wildcard imports)
+3. Javadoc
+4. Class/interface/record/enum declaration
+5. Static constants
+6. Instance fields (final first, then mutable)
+7. Constructors
+8. Static factory methods
+9. Public methods
+10. Package-private methods
+11. Private methods
+12. equals() / hashCode() (identity-based for entities, structural for value objects)
+13. toString()
+
+### Imports
+- No wildcard imports (import java.util.*)
+- Group: java/javax, org, com, project-internal — separated by blank lines
+- Remove unused imports before finishing
+
+### Naming conventions
+- Classes: UpperCamelCase, noun or noun phrase
+- Interfaces: UpperCamelCase, can start with a verb (Processable) or be noun (OrderRepository)
+- Methods: lowerCamelCase, verb phrase
+- Constants: UPPER_SNAKE_CASE
+- Records components: lowerCamelCase nouns
+- Test classes: {SubjectClass}Test
+- Test methods: methodName_stateUnderTest_expectedBehaviour
+
+### Exception handling in Java files
+- Catch the most specific exception first
+- Never swallow exceptions with empty catch blocks
+- Always log the exception (with stack trace at ERROR level) before re-throwing or wrapping
+- Wrap checked exceptions in an appropriate unchecked exception with a message that includes context
+- Never catch Throwable in application code (only allowed in framework-level infrastructure)
+
+### Records and immutability
+- Prefer records for DTOs, commands, events and value objects
+- Use compact constructor in records for validation: throw IllegalArgumentException, never return null
+- If a field in a regular class is conceptually immutable, declare it final
+
+### Generics
+- Always bound wildcards meaningfully: prefer <T extends Processable> over raw <T> where applicable
+- Do not suppress unchecked cast warnings without a comment explaining why it is safe
+
+### Logging in Java files
+- Logger declaration: private static final Logger log = LoggerFactory.getLogger(ClassName.class)
+- Log method entry at DEBUG for complex methods with parameters relevant to tracing
+- Log significant state transitions at INFO
+- Log recoverable failures at WARN with context
+- Log unexpected failures at ERROR with the full exception
+- Never construct log messages with string concatenation inside the log call; use parameterized form: log.info("Order {} created", orderId)
