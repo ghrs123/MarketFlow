@@ -5,3 +5,6 @@ target/
 *.log
 .DS_Store
 HELP.md
+.idea/compiler.xml
+/.idea
+/target
