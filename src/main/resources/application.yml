@@ -7,6 +7,24 @@ server:
 spring:
   application:
     name: marketflow-lab
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/marketflow}
+    username: ${DB_USERNAME:marketflow}
+    password: ${DB_PASSWORD:marketflow}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+        "[format_sql]": true
+  flyway:
+    enabled: true
   jackson:
     default-property-inclusion: non_null
 
@@ -27,12 +45,12 @@ management:
 info:
   app:
     name: marketflow-lab
-    phase: 01-foundation-order-api
-    description: MarketFlow Senior Java Cloud Lab - Phase 1
+    phase: 02-persistence-jpa-transactions
+    description: MarketFlow Senior Java Cloud Lab - Phase 2
 
 logging:
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
   level:
-    com.gustavo.marketflow: DEBUG
-    org.springframework.web: INFO
+    "[com.gustavo.marketflow]": DEBUG
+    "[org.springframework.web]": INFO

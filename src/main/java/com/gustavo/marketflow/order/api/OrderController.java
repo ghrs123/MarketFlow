@@ -2,14 +2,19 @@ package com.gustavo.marketflow.order.api;
 
 import com.gustavo.marketflow.order.application.OrderApplicationService;
 import com.gustavo.marketflow.order.domain.Order;
+import com.gustavo.marketflow.order.domain.OrderStatus;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
@@ -36,6 +41,7 @@ import java.util.UUID;
  */
 @RestController
 @RequestMapping("/orders")
+@Validated
 public class OrderController {
 
     private final OrderApplicationService orderApplicationService;
@@ -70,9 +76,19 @@ public class OrderController {
     }
 
     @GetMapping
-    public List<OrderResponse> findAll() {
-        return orderApplicationService.findAll().stream()
-                .map(OrderResponse::from)
+    public OrderPageResponse findAll(
+            @RequestParam(required = false) String clientId,
+            @RequestParam(required = false) OrderStatus status,
+            @RequestParam(defaultValue = "0") @PositiveOrZero int page,
+            @RequestParam(defaultValue = "20") @Positive int size
+    ) {
+        return OrderPageResponse.from(orderApplicationService.findByFilters(clientId, status, page, size));
+    }
+
+    @GetMapping("/{id}/history")
+    public List<OrderHistoryResponse> findHistoryByOrderId(@PathVariable UUID id) {
+        return orderApplicationService.findHistoryByOrderId(id).stream()
+                .map(OrderHistoryResponse::from)
                 .toList();
     }
 }

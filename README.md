@@ -4,24 +4,24 @@
 > an incremental course. Each phase ships a complete vertical slice with
 > its own branch, tests and documentation.
 
-This repository is the implementation of Phase 1 of the
+This repository is the implementation of Phase 2 of the
 `MarketFlow Senior Java Cloud Lab` curriculum.
 
 ## Current phase
 
-**Phase 1 - Foundation + Order API (in-memory)**
+**Phase 2 - PostgreSQL + JPA + Transactions + Order History**
 
-A first vertical slice that exposes the Order management API end-to-end:
-controller -> application service -> in-memory repository, plus a
-RFC 7807 global exception handler, Bean Validation and Actuator. JPA and
-PostgreSQL are intentionally deferred to Phase 2.
+A persistence-focused vertical slice that upgrades the Order API from
+in-memory storage to PostgreSQL with Spring Data JPA, Flyway migrations,
+transactional consistency and order-history tracking.
 
 ## Stack
 
 - Java 21
-- Spring Boot 3.3.5 (Web, Validation, Actuator)
+- Spring Boot 3.3.5 (Web, Validation, Actuator, Data JPA)
 - Maven
-- JUnit 5 + MockMvc + AssertJ
+- PostgreSQL + Flyway
+- JUnit 5 + MockMvc + AssertJ + Testcontainers
 
 ## Project layout
 
@@ -32,7 +32,7 @@ src/main/java/com/gustavo/marketflow
 │   ├── api              # REST adapter (controller + DTOs)
 │   ├── application      # use cases (OrderApplicationService)
 │   ├── domain           # Order, enums, repository port
-│   └── infrastructure   # OrderInMemoryRepository
+│   └── infrastructure   # JPA entities/repositories/adapters
 ├── shared
 │   └── exception        # GlobalExceptionHandler + domain exceptions
 ├── monitoring
@@ -42,7 +42,15 @@ src/main/java/com/gustavo/marketflow
 
 ## How to run
 
-Requires JDK 21 and Maven 3.9+.
+Requires JDK 21, Maven 3.9+ and a PostgreSQL instance.
+
+Example local environment variables:
+
+```bash
+export DB_URL=jdbc:postgresql://localhost:5432/marketflow
+export DB_USERNAME=marketflow
+export DB_PASSWORD=marketflow
+```
 
 ```bash
 mvn spring-boot:run
@@ -62,7 +70,8 @@ mvn test
 | ------ | --------------------------------- | ------------------------------------ |
 | POST   | `/orders`                         | Create a new order                   |
 | GET    | `/orders/{id}`                    | Fetch one order by id                |
-| GET    | `/orders`                         | List all orders                      |
+| GET    | `/orders`                         | Filter + paginate orders             |
+| GET    | `/orders/{id}/history`            | List order history                   |
 | GET    | `/health/custom`                  | Application-owned health summary     |
 | GET    | `/actuator/health`                | Spring Boot Actuator health          |
 | GET    | `/actuator/info`                  | Application info                     |
@@ -71,6 +80,11 @@ mvn test
 | GET    | `/learning/rest`                  | Notes on REST design                 |
 | GET    | `/learning/validation`            | Notes on Bean Validation             |
 | GET    | `/learning/exception-handling`    | Notes on the error model             |
+| GET    | `/learning/jpa/lazy-vs-eager`     | Notes on LAZY vs EAGER loading       |
+| GET    | `/learning/jpa/n-plus-one`        | Notes on N+1 and mitigation          |
+| GET    | `/learning/transactions`          | Notes on transactional boundaries    |
+| GET    | `/learning/transactions/self-invocation` | Notes on proxy/self invocation |
+| GET    | `/learning/hibernate/dirty-checking` | Notes on dirty checking          |
 
 ## curl examples
 
@@ -108,10 +122,16 @@ Trigger a not-found error (expect 404 with RFC 7807 body):
 curl -i http://localhost:8080/orders/00000000-0000-0000-0000-000000000000
 ```
 
-List orders:
+List orders with filters:
 
 ```bash
-curl -s http://localhost:8080/orders | jq
+curl -s "http://localhost:8080/orders?clientId=C001&status=NEW&page=0&size=20" | jq
+```
+
+Order history:
+
+```bash
+curl -s http://localhost:8080/orders/{id}/history | jq
 ```
 
 ## Roadmap
@@ -123,5 +143,5 @@ testing/quality + OpenAPI -> data structures + order book -> concurrency
 resilience -> caching/scheduling -> Docker Compose -> Kubernetes ->
 performance/load tests -> CI/CD.
 
-See `docs/phase-01-foundation-order-api.md` for the in-depth narrative of
-this phase.
+See `docs/phase-02-persistence-jpa-transactions.md` for the in-depth
+narrative of this phase.
