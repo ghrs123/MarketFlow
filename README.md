@@ -4,16 +4,16 @@
 > an incremental course. Each phase ships a complete vertical slice with
 > its own branch, tests and documentation.
 
-This repository is the implementation of Phase 2 of the
+This repository is the implementation of Phase 3 of the
 `MarketFlow Senior Java Cloud Lab` curriculum.
 
 ## Current phase
 
-**Phase 2 - PostgreSQL + JPA + Transactions + Order History**
+**Phase 3 - Testing, Code Quality, OpenAPI and Basic CI**
 
-A persistence-focused vertical slice that upgrades the Order API from
-in-memory storage to PostgreSQL with Spring Data JPA, Flyway migrations,
-transactional consistency and order-history tracking.
+A quality-focused vertical slice that adds OpenAPI/Swagger, layered test
+coverage, JaCoCo reporting, contributor workflow documentation and a
+basic GitHub Actions pipeline on top of the persisted Order API.
 
 ## Stack
 
@@ -21,7 +21,7 @@ transactional consistency and order-history tracking.
 - Spring Boot 3.3.5 (Web, Validation, Actuator, Data JPA)
 - Maven
 - PostgreSQL + Flyway
-- JUnit 5 + MockMvc + AssertJ + Testcontainers
+- JUnit 5 + Mockito + MockMvc + AssertJ + Testcontainers + JaCoCo
 
 ## Project layout
 
@@ -64,6 +64,33 @@ Default port: `8080`.
 mvn test
 ```
 
+Run service unit tests only:
+
+```bash
+mvn -Dtest=OrderApplicationServiceTest test
+```
+
+Run controller slice tests only:
+
+```bash
+mvn -Dtest=OrderControllerTest test
+```
+
+Run PostgreSQL integration tests only:
+
+```bash
+mvn -Dtest=OrderRepositoryIntegrationTest test
+```
+
+Generate JaCoCo report:
+
+```bash
+mvn verify
+```
+
+Note: Docker is required locally for Testcontainers-backed integration
+tests because they start a real PostgreSQL container.
+
 ## Endpoints
 
 | Method | Path                              | Purpose                              |
@@ -72,6 +99,8 @@ mvn test
 | GET    | `/orders/{id}`                    | Fetch one order by id                |
 | GET    | `/orders`                         | Filter + paginate orders             |
 | GET    | `/orders/{id}/history`            | List order history                   |
+| GET    | `/swagger-ui.html`                | Swagger UI                           |
+| GET    | `/v3/api-docs`                    | OpenAPI JSON                         |
 | GET    | `/health/custom`                  | Application-owned health summary     |
 | GET    | `/actuator/health`                | Spring Boot Actuator health          |
 | GET    | `/actuator/info`                  | Application info                     |
@@ -134,14 +163,32 @@ Order history:
 curl -s http://localhost:8080/orders/{id}/history | jq
 ```
 
+Swagger UI:
+
+```bash
+curl -i http://localhost:8080/swagger-ui.html
+```
+
+OpenAPI JSON:
+
+```bash
+curl -s http://localhost:8080/v3/api-docs | jq
+```
+
+## Phase 3 docs
+
+- `docs/testing-strategy.md`
+- `docs/git-workflow.md`
+- `docs/phase-03-testing-quality-api-docs.md`
+- `CONTRIBUTING.md`
+
 ## Roadmap
 
-Future phases (per the curriculum): PostgreSQL + JPA + transactions ->
-testing/quality + OpenAPI -> data structures + order book -> concurrency
-+ processing engine -> FIX message engine -> event-driven + retry + DLQ
-+ idempotency -> external messaging -> observability -> security ->
-resilience -> caching/scheduling -> Docker Compose -> Kubernetes ->
-performance/load tests -> CI/CD.
+Future phases (per the curriculum): data structures + order book ->
+concurrency + processing engine -> FIX message engine -> event-driven +
+retry + DLQ + idempotency -> external messaging -> observability ->
+security -> resilience -> caching/scheduling -> Docker Compose ->
+Kubernetes -> performance/load tests -> CI/CD.
 
-See `docs/phase-02-persistence-jpa-transactions.md` for the in-depth
+See `docs/phase-03-testing-quality-api-docs.md` for the in-depth
 narrative of this phase.
