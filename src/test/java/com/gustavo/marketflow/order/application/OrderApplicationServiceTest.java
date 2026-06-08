@@ -1,94 +1,159 @@
 package com.gustavo.marketflow.order.application;
 
+import com.gustavo.marketflow.order.OrderTestData;
+import com.gustavo.marketflow.order.domain.Order;
+import com.gustavo.marketflow.order.domain.OrderHistory;
 import com.gustavo.marketflow.order.domain.OrderHistoryRepository;
+import com.gustavo.marketflow.order.domain.OrderPage;
 import com.gustavo.marketflow.order.domain.OrderRepository;
 import com.gustavo.marketflow.order.domain.OrderSide;
 import com.gustavo.marketflow.order.domain.OrderStatus;
-import com.gustavo.marketflow.order.infrastructure.jpa.OrderEntity;
-import com.gustavo.marketflow.order.infrastructure.jpa.SpringDataOrderHistoryJpaRepository;
-import com.gustavo.marketflow.order.infrastructure.jpa.SpringDataOrderJpaRepository;
-import com.gustavo.marketflow.support.PostgreSqlContainerBaseTest;
-import org.junit.jupiter.api.BeforeEach;
+import com.gustavo.marketflow.shared.exception.OrderNotFoundException;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-@SpringBootTest
-class OrderApplicationServiceTest extends PostgreSqlContainerBaseTest {
+@ExtendWith(MockitoExtension.class)
+class OrderApplicationServiceTest {
 
-    @Autowired
-    private OrderApplicationService service;
-
-    @Autowired
+    @Mock
     private OrderRepository orderRepository;
 
-    @Autowired
-    private SpringDataOrderJpaRepository springDataOrderJpaRepository;
-
-    @Autowired
-    private SpringDataOrderHistoryJpaRepository springDataOrderHistoryJpaRepository;
-
-    @MockBean
+    @Mock
     private OrderHistoryRepository orderHistoryRepository;
 
-    @BeforeEach
-    void setUp() {
-        springDataOrderHistoryJpaRepository.deleteAll();
-        springDataOrderJpaRepository.deleteAll();
+    @InjectMocks
+    private OrderApplicationService service;
+
+    @Test
+    void createOrder_happyPath_persistsOrderAndHistory() {
+        Order persistedOrder = OrderTestData.valid();
+        when(orderRepository.save(any(Order.class))).thenReturn(persistedOrder);
+        when(orderHistoryRepository.save(any(OrderHistory.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0, OrderHistory.class));
+
+        Order result = service.createOrder(
+                "C001",
+                "AAPL",
+                OrderSide.BUY,
+                new BigDecimal("10.00000000"),
+                new BigDecimal("150.25000000")
+        );
+
+        ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+        ArgumentCaptor<OrderHistory> historyCaptor = ArgumentCaptor.forClass(OrderHistory.class);
+
+        verify(orderRepository).save(orderCaptor.capture());
+        verify(orderHistoryRepository).save(historyCaptor.capture());
+
+        Order savedOrder = orderCaptor.getValue();
+        OrderHistory history = historyCaptor.getValue();
+
+        assertThat(result).isSameAs(persistedOrder);
+        assertThat(savedOrder.getClientId()).isEqualTo("C001");
+        assertThat(savedOrder.getSymbol()).isEqualTo("AAPL");
+        assertThat(savedOrder.getSide()).isEqualTo(OrderSide.BUY);
+        assertThat(savedOrder.getQuantity()).isEqualByComparingTo("10.00000000");
+        assertThat(savedOrder.getPrice()).isEqualByComparingTo("150.25000000");
+        assertThat(savedOrder.getStatus()).isEqualTo(OrderStatus.NEW);
+        assertThat(history.orderId()).isEqualTo(persistedOrder.getId());
+        assertThat(history.eventType()).isEqualTo("ORDER_CREATED");
+        assertThat(history.previousStatus()).isNull();
+        assertThat(history.newStatus()).isEqualTo(OrderStatus.NEW);
+        assertThat(history.occurredAt()).isNotNull();
+        assertThat(history.createdAt()).isNotNull();
     }
 
     @Test
-    void createOrder_rollbackWhenHistoryPersistenceFails() {
+    void createOrder_rollbackWhenHistoryFails_orderDoesNotCompletePersistence() {
+        Order persistedOrder = OrderTestData.valid();
+        when(orderRepository.save(any(Order.class))).thenReturn(persistedOrder);
         doThrow(new IllegalStateException("history persistence failed"))
                 .when(orderHistoryRepository)
-                .save(any());
+                .save(any(OrderHistory.class));
 
         assertThatThrownBy(() -> service.createOrder(
                 "C001",
                 "AAPL",
                 OrderSide.BUY,
-                new BigDecimal("10"),
-                new BigDecimal("150.25")
+                new BigDecimal("10.00000000"),
+                new BigDecimal("150.25000000")
         )).isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("history persistence failed");
 
-        assertThat(orderRepository.countByFilters(null, null)).isZero();
+        verify(orderRepository).save(any(Order.class));
+        verify(orderHistoryRepository).save(any(OrderHistory.class));
     }
 
     @Test
-    void findByFilters_returnsPersistedRows() {
-        springDataOrderJpaRepository.saveAll(List.of(
-                buildOrderEntity("C001", "AAPL", OrderStatus.NEW),
-                buildOrderEntity("C001", "MSFT", OrderStatus.NEW),
-                buildOrderEntity("C002", "GOOG", OrderStatus.NEW)
-        ));
+    void findById_existingOrder_returnsOrder() {
+        Order existingOrder = OrderTestData.valid();
+        when(orderRepository.findById(existingOrder.getId())).thenReturn(Optional.of(existingOrder));
 
-        assertThat(service.findByFilters("C001", OrderStatus.NEW, 0, 10).content()).hasSize(2);
+        Order result = service.findById(existingOrder.getId());
+
+        assertThat(result).isSameAs(existingOrder);
     }
 
-    private OrderEntity buildOrderEntity(String clientId, String symbol, OrderStatus status) {
-        OrderEntity entity = new OrderEntity();
-        entity.setId(UUID.randomUUID());
-        entity.setClientId(clientId);
-        entity.setSymbol(symbol);
-        entity.setSide(OrderSide.BUY);
-        entity.setQuantity(new BigDecimal("1.0"));
-        entity.setPrice(new BigDecimal("10.0"));
-        entity.setStatus(status);
-        Instant now = Instant.now();
-        entity.setCreatedAt(now);
-        entity.setUpdatedAt(now);
-        return entity;
+    @Test
+    void findById_missingOrder_throwsOrderNotFoundException() {
+        UUID orderId = UUID.randomUUID();
+        when(orderRepository.findById(orderId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.findById(orderId))
+                .isInstanceOf(OrderNotFoundException.class)
+                .hasMessageContaining(orderId.toString());
+    }
+
+    @Test
+    void findByFilters_withClientIdAndStatus_returnsFilteredOrders() {
+        List<Order> filteredOrders = List.of(
+                OrderTestData.withClientId("C001"),
+                OrderTestData.withStatus(OrderStatus.NEW)
+        );
+        when(orderRepository.findByFilters("C001", OrderStatus.NEW, 0, 20)).thenReturn(filteredOrders);
+        when(orderRepository.countByFilters("C001", OrderStatus.NEW)).thenReturn(2L);
+
+        OrderPage result = service.findByFilters("C001", OrderStatus.NEW, 0, 20);
+
+        assertThat(result.content()).containsExactlyElementsOf(filteredOrders);
+        assertThat(result.totalElements()).isEqualTo(2);
+        assertThat(result.page()).isEqualTo(0);
+        assertThat(result.size()).isEqualTo(20);
+        assertThat(result.totalPages()).isEqualTo(1);
+    }
+
+    @Test
+    void findByFilters_paginated_returnsExpectedPageMetadata() {
+        List<Order> pageContent = List.of(
+                OrderTestData.withSymbol("MSFT"),
+                OrderTestData.withSymbol("GOOG")
+        );
+        when(orderRepository.findByFilters(eq(null), eq(OrderStatus.NEW), eq(1), eq(2))).thenReturn(pageContent);
+        when(orderRepository.countByFilters(null, OrderStatus.NEW)).thenReturn(5L);
+
+        OrderPage result = service.findByFilters(null, OrderStatus.NEW, 1, 2);
+
+        assertThat(result.content()).containsExactlyElementsOf(pageContent);
+        assertThat(result.page()).isEqualTo(1);
+        assertThat(result.size()).isEqualTo(2);
+        assertThat(result.totalElements()).isEqualTo(5);
+        assertThat(result.totalPages()).isEqualTo(3);
     }
 }

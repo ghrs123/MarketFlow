@@ -28,6 +28,14 @@ spring:
   jackson:
     default-property-inclusion: non_null
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+
 management:
   endpoints:
     web:
@@ -45,8 +53,8 @@ management:
 info:
   app:
     name: marketflow-lab
-    phase: 02-persistence-jpa-transactions
-    description: MarketFlow Senior Java Cloud Lab - Phase 2
+    phase: 03-testing-quality-api-docs
+    description: MarketFlow Senior Java Cloud Lab - Phase 3
 
 logging:
   pattern:
