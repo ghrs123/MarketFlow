@@ -8,7 +8,7 @@ spring:
   application:
     name: marketflow-lab
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/marketflow}
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/marketflow}
     username: ${DB_USERNAME:marketflow}
     password: ${DB_PASSWORD:marketflow}
     hikari:

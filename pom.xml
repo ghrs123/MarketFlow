@@ -15,7 +15,7 @@
     <artifactId>marketflow-lab</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <name>marketflow-lab</name>
-    <description>MarketFlow Senior Java Cloud Lab - Phase 1</description>
+    <description>MarketFlow Senior Java Cloud Lab - Phase 2</description>
 
     <properties>
         <java.version>21</java.version>
@@ -37,6 +37,10 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>

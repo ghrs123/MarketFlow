@@ -12,7 +12,8 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Read-only endpoints that expose the concepts introduced in Phase 1.
+ * Read-only endpoints that expose concepts introduced in the current phase
+ * and retained from earlier phases.
  *
  * <p>Not part of the product surface - they exist so the lab can be
  * explored from a browser or curl and the same concepts can be retold in
@@ -71,10 +72,11 @@ public class LearningController {
                 "On creation return 201 with a Location header to the new resource.",
                 "Never expose internal entities directly - use DTOs for the public contract."
         ));
-        body.put("endpointsInPhase1", List.of(
+        body.put("endpointsInCurrentPhase", List.of(
                 "POST /orders",
                 "GET  /orders/{id}",
-                "GET  /orders"
+                "GET  /orders",
+                "GET  /orders/{id}/history"
         ));
         return body;
     }

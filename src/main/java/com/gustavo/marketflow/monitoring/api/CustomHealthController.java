@@ -26,7 +26,7 @@ public class CustomHealthController {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("status", "UP");
         body.put("service", "marketflow-lab");
-        body.put("phase", "01-foundation-order-api");
+        body.put("phase", "02-persistence-jpa-transactions");
         body.put("timestamp", Instant.now().toString());
         return body;
     }
