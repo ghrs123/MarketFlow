@@ -179,4 +179,90 @@ public class LearningController {
                 ));
                 return body;
         }
+
+        @GetMapping("/data-structures")
+        public Map<String, Object> dataStructures() {
+                return learningTopic(
+                                "Data structures in the order book phase",
+                                "PriorityQueue + LinkedHashMap + ConcurrentHashMap",
+                                "Each structure serves a different access pattern: price ordering, recent-entry eviction and concurrent key lookup.",
+                                List.of(
+                                                "The design is intentionally in-memory, so process restarts lose state.",
+                                                "Multiple structures increase coordination cost because invariants must stay aligned.",
+                                                "The chosen structures optimize read and ordering behaviour, not persistence durability."
+                                ),
+                                List.of(
+                                                "Why is one structure rarely enough for a non-trivial in-memory workflow?",
+                                                "How do access patterns drive data-structure choice?",
+                                                "What invariants must be protected when several structures model the same data?"
+                                ));
+        }
+
+        @GetMapping("/data-structures/order-book")
+        public Map<String, Object> orderBook() {
+                return learningTopic(
+                                "Order book price ordering",
+                                "PriorityQueue",
+                                "The order book needs efficient access to the best BUY and SELL prices, and PriorityQueue gives direct heap-based access to the head element.",
+                                List.of(
+                                                "PriorityQueue is not thread-safe, so queue access must be synchronized.",
+                                                "It is efficient for head access but not for arbitrary sorted traversal without copying.",
+                                                "Removing or updating arbitrary entries is weaker than a tree-based structure."
+                                ),
+                                List.of(
+                                                "Why use PriorityQueue for best-price retrieval?",
+                                                "How do you model BUY and SELL ordering differently?",
+                                                "What are the concurrency implications of PriorityQueue?"
+                                ));
+        }
+
+        @GetMapping("/data-structures/cache")
+        public Map<String, Object> cache() {
+                return learningTopic(
+                                "Recent order cache",
+                                "LinkedHashMap (access-order mode)",
+                                "LinkedHashMap in access-order mode gives simple LRU semantics with bounded size and deterministic eviction behaviour.",
+                                List.of(
+                                                "LinkedHashMap is not thread-safe, so access must be synchronized.",
+                                                "It is simple and fast for this phase, but not distributed or persistent.",
+                                                "Eviction is capacity-based only; there is no TTL or weight-based policy."
+                                ),
+                                List.of(
+                                                "How does access-order LinkedHashMap implement LRU?",
+                                                "When is an in-memory LRU cache sufficient?",
+                                                "What would change if cache entries needed TTL or distribution?"
+                                ));
+        }
+
+        @GetMapping("/data-structures/concurrent-map")
+        public Map<String, Object> concurrentMap() {
+                return learningTopic(
+                                "Concurrent direct lookup",
+                                "ConcurrentHashMap",
+                                "The order book needs lock-safe membership and direct access by orderId, and ConcurrentHashMap provides scalable concurrent reads and updates.",
+                                List.of(
+                                                "ConcurrentHashMap handles key-level concurrency but does not protect cross-structure invariants by itself.",
+                                                "It is excellent for lookup and deduplication, but it does not maintain sorted order.",
+                                                "You still need explicit coordination when map state must stay consistent with queues."
+                                ),
+                                List.of(
+                                                "Why use ConcurrentHashMap for deduplication?",
+                                                "What problems does ConcurrentHashMap solve and what does it not solve?",
+                                                "Why is a concurrent map not enough to build a full order book?"
+                                ));
+        }
+
+        private Map<String, Object> learningTopic(String topic,
+                                                  String structure,
+                                                  String whyThisStructure,
+                                                  List<String> tradeOffs,
+                                                  List<String> interviewTopics) {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", topic);
+                body.put("structure", structure);
+                body.put("whyThisStructure", whyThisStructure);
+                body.put("tradeOffs", tradeOffs);
+                body.put("interviewTopics", interviewTopics);
+                return body;
+        }
 }

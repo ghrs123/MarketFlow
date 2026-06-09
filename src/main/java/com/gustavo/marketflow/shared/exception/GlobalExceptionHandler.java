@@ -54,6 +54,35 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(OrderAlreadyInBookException.class)
+    public ProblemDetail handleOrderAlreadyInBook(OrderAlreadyInBookException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Order already in book");
+        problem.setType(URI.create("https://marketflow.local/errors/order-already-in-book"));
+        problem.setProperty("orderId", ex.getOrderId().toString());
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
+
+    @ExceptionHandler(EmptyOrderBookSideException.class)
+    public ProblemDetail handleEmptyOrderBookSide(EmptyOrderBookSideException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Order book side is empty");
+        problem.setType(URI.create("https://marketflow.local/errors/order-book-side-empty"));
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
+
+    @ExceptionHandler(OrderNotInCacheException.class)
+    public ProblemDetail handleOrderNotInCache(OrderNotInCacheException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Order not in cache");
+        problem.setType(URI.create("https://marketflow.local/errors/order-not-in-cache"));
+        problem.setProperty("orderId", ex.getOrderId().toString());
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidation(MethodArgumentNotValidException ex) {
         List<Map<String, String>> errors = ex.getBindingResult().getFieldErrors().stream()
