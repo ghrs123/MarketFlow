@@ -53,12 +53,18 @@ management:
 info:
   app:
     name: marketflow-lab
-    phase: 03-testing-quality-api-docs
-    description: MarketFlow Senior Java Cloud Lab - Phase 3
+    phase: 05-concurrency-processing-engine
+    description: MarketFlow Senior Java Cloud Lab - Phase 5
+
+marketflow:
+  execution:
+    worker-count: 4
+    queue-capacity: 100
+    processing-delay-millis: 50
 
 logging:
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n"
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%X{correlationId:-N/A}] %logger{36} - %msg%n"
   level:
     "[com.gustavo.marketflow]": DEBUG
     "[org.springframework.web]": INFO

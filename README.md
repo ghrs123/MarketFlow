@@ -4,16 +4,17 @@
 > an incremental course. Each phase ships a complete vertical slice with
 > its own branch, tests and documentation.
 
-This repository is the implementation of Phase 4 of the
+This repository is the implementation of Phase 5 of the
 `MarketFlow Senior Java Cloud Lab` curriculum.
 
 ## Current phase
 
-**Phase 4 - Data Structures and In-Memory Order Book**
+**Phase 5 - Concurrency and Processing Engine**
 
-An in-memory data-structure slice that adds a price-ordered order book,
-a recent-order LRU cache and learning endpoints on top of the persisted
-Order API delivered in the earlier phases.
+This phase adds an in-process execution engine with a bounded
+`BlockingQueue`, named worker threads managed by `ExecutorService`,
+thread-safe execution statistics, MDC propagation to async workers and
+learning endpoints focused on concurrency concepts.
 
 ## Stack
 
@@ -22,27 +23,34 @@ Order API delivered in the earlier phases.
 - Maven
 - PostgreSQL + Flyway
 - JUnit 5 + Mockito + MockMvc + AssertJ + Testcontainers + JaCoCo
-- In-memory data structures: `PriorityQueue`, `LinkedHashMap`, `ConcurrentHashMap`
+- In-memory data structures: `PriorityQueue`, `LinkedHashMap`, `ConcurrentHashMap`, `BlockingQueue`
+- Concurrency primitives: `ExecutorService`, `CompletableFuture`, `AtomicLong`, `ReentrantLock`
 
 ## Project layout
 
 ```text
 src/main/java/com/gustavo/marketflow
-|- MarketFlowApplication.java
+|- execution
+|  |- api              # Queue and worker lifecycle endpoints
+|  |- application      # Processing engine, workers, transactional execution service
+|  `- domain           # BlockingQueue wrapper and queue payloads
+|- learning
+|  |- concurrency      # Race condition, locks, deadlock and CompletableFuture demos
+|  `- LearningController.java
 |- order
-|  |- api              # REST adapter (controller + DTOs)
-|  |- application      # use cases (OrderApplicationService)
-|  |- domain           # Order, enums, repository port
-|  `- infrastructure   # JPA entities/repositories/adapters
+|  |- api
+|  |- application
+|  |- domain
+|  `- infrastructure
 |- orderbook
-|  |- api              # OrderBookController + response DTOs
-|  |- application      # OrderBookApplicationService
-|  `- domain           # OrderBook, OrderTask, RecentOrderCache
+|  |- api
+|  |- application
+|  `- domain
 |- shared
-|  `- exception        # GlobalExceptionHandler + domain exceptions
-|- monitoring
-|  `- api              # CustomHealthController
-`- learning            # /learning/* didactic endpoints
+|  |- config
+|  |- exception
+|  `- logging
+`- monitoring
 ```
 
 ## How to run
@@ -63,6 +71,16 @@ mvn spring-boot:run
 
 Default port: `8080`.
 
+Important runtime defaults:
+
+- execution worker count: `4`
+- internal queue capacity: `100`
+- simulated processing delay: `50ms`
+
+Every inbound HTTP request receives an `X-Correlation-Id` header. If the
+client does not provide one, the service generates it and propagates it to
+async worker threads through MDC context capture.
+
 ## How to test
 
 Run the full suite:
@@ -71,28 +89,16 @@ Run the full suite:
 mvn test
 ```
 
-Run order service unit tests only:
+Run the existing order and order-book tests only:
 
 ```bash
-mvn -Dtest=OrderApplicationServiceTest test
+mvn -Dtest=OrderApplicationServiceTest,OrderControllerTest,OrderRepositoryIntegrationTest,OrderBookApplicationServiceTest,OrderBookControllerTest,OrderBookTest,RecentOrderCacheTest test
 ```
 
-Run HTTP controller slice tests only:
+Run Phase 5 tests only:
 
 ```bash
-mvn -Dtest=OrderControllerTest,OrderBookControllerTest test
-```
-
-Run order book unit tests only:
-
-```bash
-mvn -Dtest=OrderBookTest,RecentOrderCacheTest,OrderBookApplicationServiceTest test
-```
-
-Run PostgreSQL integration tests only:
-
-```bash
-mvn -Dtest=OrderRepositoryIntegrationTest test
+mvn -Dtest=OrderProcessingEngineTest,ExecutionControllerTest,ExecutionStatisticsTest,RaceConditionDemoTest,AtomicCounterDemoTest,CompletableFutureDemoTest test
 ```
 
 Generate the JaCoCo report:
@@ -117,6 +123,10 @@ tests because they start a real PostgreSQL container.
 | GET | `/order-book/best-buy` | Read highest-price BUY order |
 | GET | `/order-book/best-sell` | Read lowest-price SELL order |
 | GET | `/order-book/recent/{id}` | Read a recent order from the LRU cache |
+| POST | `/orders/{id}/queue` | Enqueue an order for asynchronous processing |
+| POST | `/execution/start` | Start execution workers |
+| POST | `/execution/stop` | Stop execution workers |
+| GET | `/execution/stats` | Read execution-engine statistics |
 | GET | `/swagger-ui.html` | Swagger UI |
 | GET | `/v3/api-docs` | OpenAPI JSON |
 | GET | `/health/custom` | Application-owned health summary |
@@ -136,14 +146,19 @@ tests because they start a real PostgreSQL container.
 | GET | `/learning/data-structures/order-book` | Notes on `PriorityQueue` in the order book |
 | GET | `/learning/data-structures/cache` | Notes on the recent-order cache |
 | GET | `/learning/data-structures/concurrent-map` | Notes on `ConcurrentHashMap` lookup |
+| GET | `/learning/concurrency/race-condition` | Unsafe vs safe shared-counter updates |
+| GET | `/learning/concurrency/deadlock` | Deadlock and starvation explanation |
+| GET | `/learning/concurrency/completable-future` | `CompletableFuture` with named executor and MDC |
+| GET | `/learning/concurrency/thread-pool` | Worker-pool sizing and queue discussion |
 
 ## curl examples
 
-Create an order:
+Create an order that should execute successfully:
 
 ```bash
 curl -i -X POST http://localhost:8080/orders \
   -H "Content-Type: application/json" \
+  -H "X-Correlation-Id: demo-success-1" \
   -d '{
     "clientId": "C001",
     "symbol": "AAPL",
@@ -153,61 +168,56 @@ curl -i -X POST http://localhost:8080/orders \
   }'
 ```
 
-Trigger a validation error:
+Create an order that should fail during processing:
 
 ```bash
 curl -i -X POST http://localhost:8080/orders \
   -H "Content-Type: application/json" \
+  -H "X-Correlation-Id: demo-fail-1" \
   -d '{
-    "clientId": "",
-    "symbol": "AAPL",
-    "side": "BUY",
-    "quantity": -1,
-    "price": 0
+    "clientId": "C002",
+    "symbol": "FAIL",
+    "side": "SELL",
+    "quantity": 50,
+    "price": 90.10
   }'
 ```
 
-Trigger a not-found error:
+Start workers:
 
 ```bash
-curl -i http://localhost:8080/orders/00000000-0000-0000-0000-000000000000
+curl -i -X POST http://localhost:8080/execution/start
 ```
 
-List persisted orders with filters:
+Queue an order for async processing:
 
 ```bash
-curl -s "http://localhost:8080/orders?clientId=C001&status=NEW&page=0&size=20" | jq
+curl -i -X POST http://localhost:8080/orders/{id}/queue
 ```
 
-List order history:
+Read execution stats:
 
 ```bash
-curl -s http://localhost:8080/orders/{id}/history | jq
+curl -s http://localhost:8080/execution/stats | jq
 ```
 
-Add a persisted order to the in-memory order book:
+Stop workers:
 
 ```bash
-curl -i -X POST http://localhost:8080/orders/{id}/book
+curl -i -X POST http://localhost:8080/execution/stop
 ```
 
-Read the current order book snapshot:
+Read the order book snapshot:
 
 ```bash
 curl -s http://localhost:8080/order-book | jq
 ```
 
-Read the best BUY and best SELL:
+Read concurrency learning endpoints:
 
 ```bash
-curl -s http://localhost:8080/order-book/best-buy | jq
-curl -s http://localhost:8080/order-book/best-sell | jq
-```
-
-Read a recent cached order:
-
-```bash
-curl -s http://localhost:8080/order-book/recent/{id} | jq
+curl -s http://localhost:8080/learning/concurrency/race-condition | jq
+curl -s http://localhost:8080/learning/concurrency/completable-future | jq
 ```
 
 Swagger UI:
@@ -228,15 +238,15 @@ curl -s http://localhost:8080/v3/api-docs | jq
 - `docs/git-workflow.md`
 - `docs/phase-03-testing-quality-api-docs.md`
 - `docs/phase-04-data-structures-order-book.md`
+- `docs/phase-05-concurrency-processing-engine.md`
 - `CONTRIBUTING.md`
 
 ## Roadmap
 
-Future phases (per the curriculum): concurrency + processing engine ->
-FIX message engine -> event-driven + retry + DLQ + idempotency ->
-external messaging -> observability -> security -> resilience ->
-caching/scheduling -> Docker Compose -> Kubernetes ->
-performance/load tests -> CI/CD.
+Future phases (per the curriculum): FIX message engine ->
+event-driven + retry + DLQ + idempotency -> external messaging ->
+observability -> security -> resilience -> caching/scheduling ->
+Docker Compose -> Kubernetes -> performance/load tests -> CI/CD.
 
-See `docs/phase-04-data-structures-order-book.md` for the in-depth
+See `docs/phase-05-concurrency-processing-engine.md` for the in-depth
 narrative of this phase.
