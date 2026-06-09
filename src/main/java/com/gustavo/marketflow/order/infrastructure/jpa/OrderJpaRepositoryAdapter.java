@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -55,5 +56,15 @@ public class OrderJpaRepositoryAdapter implements OrderRepository {
     @Override
     public long countByFilters(String clientId, OrderStatus status) {
         return springDataOrderJpaRepository.countByFilters(clientId, status);
+    }
+
+    @Override
+    public Order updateStatus(UUID id, OrderStatus status, Instant updatedAt) {
+        OrderEntity entity = springDataOrderJpaRepository.findById(id)
+                .orElseThrow();
+        entity.setStatus(status);
+        entity.setUpdatedAt(updatedAt);
+        OrderEntity saved = springDataOrderJpaRepository.save(entity);
+        return OrderEntityMapper.toDomain(saved);
     }
 }

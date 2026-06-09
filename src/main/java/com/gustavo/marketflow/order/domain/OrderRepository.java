@@ -1,5 +1,6 @@
 package com.gustavo.marketflow.order.domain;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,4 +24,6 @@ public interface OrderRepository {
     List<Order> findByFilters(String clientId, OrderStatus status, int page, int size);
 
     long countByFilters(String clientId, OrderStatus status);
+
+    Order updateStatus(UUID id, OrderStatus status, Instant updatedAt);
 }

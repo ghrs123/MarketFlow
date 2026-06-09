@@ -64,6 +64,37 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(OrderAlreadyQueuedException.class)
+    public ProblemDetail handleOrderAlreadyQueued(OrderAlreadyQueuedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Order already queued");
+        problem.setType(URI.create("https://marketflow.local/errors/order-already-queued"));
+        problem.setProperty("orderId", ex.getOrderId().toString());
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
+
+    @ExceptionHandler(OrderNotQueueableException.class)
+    public ProblemDetail handleOrderNotQueueable(OrderNotQueueableException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Order is not queueable");
+        problem.setType(URI.create("https://marketflow.local/errors/order-not-queueable"));
+        problem.setProperty("orderId", ex.getOrderId().toString());
+        problem.setProperty("currentStatus", ex.getCurrentStatus().name());
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
+
+    @ExceptionHandler(OrderQueueFullException.class)
+    public ProblemDetail handleOrderQueueFull(OrderQueueFullException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+        problem.setTitle("Order queue is full");
+        problem.setType(URI.create("https://marketflow.local/errors/order-queue-full"));
+        problem.setProperty("orderId", ex.getOrderId().toString());
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
+
     @ExceptionHandler(EmptyOrderBookSideException.class)
     public ProblemDetail handleEmptyOrderBookSide(EmptyOrderBookSideException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());

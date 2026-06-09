@@ -30,10 +30,10 @@ public class OpenApiConfiguration {
                 .info(new Info()
                         .title("MarketFlow Order API")
                         .description("""
-                                REST API for creating, querying and auditing market orders.
+                                REST API for creating, querying, queueing and processing market orders.
                                 Error responses follow RFC 7807 Problem Details.
                                 """)
-                        .version("3.0.0")
+                        .version("5.0.0")
                         .contact(new Contact()
                                 .name("MarketFlow Engineering"))
                         .license(new License()

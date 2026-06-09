@@ -1,5 +1,16 @@
 package com.gustavo.marketflow.learning;
 
+import com.gustavo.marketflow.execution.application.ExecutionProperties;
+import com.gustavo.marketflow.learning.concurrency.AtomicCounterDemo;
+import com.gustavo.marketflow.learning.concurrency.CompletableFutureDemo;
+import com.gustavo.marketflow.learning.concurrency.CompletableFutureDemoResult;
+import com.gustavo.marketflow.learning.concurrency.DeadlockDemo;
+import com.gustavo.marketflow.learning.concurrency.RaceConditionDemo;
+import com.gustavo.marketflow.learning.concurrency.RaceConditionDemoResult;
+import com.gustavo.marketflow.learning.concurrency.ReentrantLockCounterDemo;
+import com.gustavo.marketflow.learning.concurrency.StarvationDemo;
+import com.gustavo.marketflow.learning.concurrency.SynchronizedCounterDemo;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,11 +40,35 @@ public class LearningController {
 
     private final ApplicationContext applicationContext;
     private final String activeProfile;
+    private final RaceConditionDemo raceConditionDemo;
+    private final SynchronizedCounterDemo synchronizedCounterDemo;
+    private final AtomicCounterDemo atomicCounterDemo;
+    private final ReentrantLockCounterDemo reentrantLockCounterDemo;
+    private final DeadlockDemo deadlockDemo;
+    private final StarvationDemo starvationDemo;
+    private final CompletableFutureDemo completableFutureDemo;
+    private final ExecutionProperties executionProperties;
 
     public LearningController(ApplicationContext applicationContext,
-                              @Value("${spring.profiles.active:default}") String activeProfile) {
+                              @Value("${spring.profiles.active:default}") String activeProfile,
+                              RaceConditionDemo raceConditionDemo,
+                              SynchronizedCounterDemo synchronizedCounterDemo,
+                              AtomicCounterDemo atomicCounterDemo,
+                              ReentrantLockCounterDemo reentrantLockCounterDemo,
+                              DeadlockDemo deadlockDemo,
+                              StarvationDemo starvationDemo,
+                              CompletableFutureDemo completableFutureDemo,
+                              ExecutionProperties executionProperties) {
         this.applicationContext = applicationContext;
         this.activeProfile = activeProfile;
+        this.raceConditionDemo = raceConditionDemo;
+        this.synchronizedCounterDemo = synchronizedCounterDemo;
+        this.atomicCounterDemo = atomicCounterDemo;
+        this.reentrantLockCounterDemo = reentrantLockCounterDemo;
+        this.deadlockDemo = deadlockDemo;
+        this.starvationDemo = starvationDemo;
+        this.completableFutureDemo = completableFutureDemo;
+        this.executionProperties = executionProperties;
     }
 
     @GetMapping("/spring/beans")
@@ -263,6 +298,79 @@ public class LearningController {
                 body.put("whyThisStructure", whyThisStructure);
                 body.put("tradeOffs", tradeOffs);
                 body.put("interviewTopics", interviewTopics);
+                return body;
+        }
+
+        @GetMapping("/concurrency/race-condition")
+        public Map<String, Object> raceCondition() {
+                RaceConditionDemoResult unsafe = raceConditionDemo.run(8, 2_000);
+                RaceConditionDemoResult sync = synchronizedCounterDemo.run(8, 2_000);
+                RaceConditionDemoResult atomic = atomicCounterDemo.run(8, 2_000);
+                RaceConditionDemoResult lock = reentrantLockCounterDemo.run(8, 2_000);
+
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "Race condition");
+                body.put("unsafe", unsafe);
+                body.put("synchronized", sync);
+                body.put("atomic", atomic);
+                body.put("reentrantLock", lock);
+                body.put("tradeOffs", List.of(
+                                "Unsynchronized mutation is fast but incorrect under contention.",
+                                "synchronized is simple but can serialize access more aggressively.",
+                                "AtomicInteger is efficient for counters but does not replace locks for compound invariants."
+                ));
+                return body;
+        }
+
+        @GetMapping("/concurrency/deadlock")
+        public Map<String, Object> deadlock() {
+                Map<String, Object> body = new LinkedHashMap<>(deadlockDemo.describe());
+                body.put("starvation", starvationDemo.describe());
+                return body;
+        }
+
+        @GetMapping("/concurrency/completable-future")
+        public Map<String, Object> completableFuture() {
+                Map<String, String> previousContext = MDC.getCopyOfContextMap();
+                if (previousContext == null || previousContext.get("correlationId") == null) {
+                        previousContext = Map.of("correlationId", "learning-cf-demo");
+                        MDC.setContextMap(previousContext);
+                }
+                CompletableFutureDemoResult result = completableFutureDemo.run(MDC.get("correlationId"));
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "CompletableFuture");
+                body.put("structure", "CompletableFuture + ExecutorService");
+                body.put("whyThisStructure", "CompletableFuture composes async stages cleanly, but production code must still supply a managed executor and propagate MDC manually.");
+                body.put("result", result);
+                body.put("tradeOffs", List.of(
+                                "CompletableFuture is expressive for composition but can hide thread usage if the executor is implicit.",
+                                "MDC does not flow automatically across async boundaries, so context propagation must be explicit."
+                ));
+                body.put("interviewTopics", List.of(
+                                "Why avoid ForkJoinPool.commonPool() in backend services?",
+                                "How do you propagate MDC to async stages?",
+                                "When would you choose CompletableFuture over plain ExecutorService?"
+                ));
+                return body;
+        }
+
+        @GetMapping("/concurrency/thread-pool")
+        public Map<String, Object> threadPool() {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "Thread pool sizing");
+                body.put("structure", "Fixed ExecutorService");
+                body.put("whyThisStructure", "The processing engine uses a named fixed pool so worker count is explicit, bounded and observable.");
+                body.put("workerCount", executionProperties.workerCount());
+                body.put("queueCapacity", executionProperties.queueCapacity());
+                body.put("tradeOffs", List.of(
+                                "A fixed pool prevents unbounded thread growth but can queue work under load.",
+                                "Too many workers can increase contention and context switching."
+                ));
+                body.put("interviewTopics", List.of(
+                                "How do CPU-bound and IO-bound workloads affect pool sizing?",
+                                "Why is a bounded queue important for backpressure?",
+                                "What production signals indicate thread-pool saturation?"
+                ));
                 return body;
         }
 }
