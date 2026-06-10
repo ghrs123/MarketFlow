@@ -4,6 +4,7 @@ import org.slf4j.MDC;
 
 import java.time.Instant;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -18,6 +19,12 @@ public record QueuedOrder(
         Map<String, String> mdcContext,
         Instant queuedAt
 ) {
+
+    public QueuedOrder {
+        Objects.requireNonNull(orderId, "orderId");
+        mdcContext = mdcContext == null ? Map.of() : Map.copyOf(mdcContext);
+        Objects.requireNonNull(queuedAt, "queuedAt");
+    }
 
     public static QueuedOrder capture(UUID orderId) {
         return new QueuedOrder(orderId, MDC.getCopyOfContextMap(), Instant.now());
