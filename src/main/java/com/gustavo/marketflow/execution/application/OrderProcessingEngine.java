@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
@@ -54,6 +55,7 @@ public class OrderProcessingEngine {
 
     public OrderProcessingEngine(OrderApplicationService orderApplicationService,
                                  OrderExecutionService orderExecutionService,
+    public OrderProcessingEngine(OrderExecutionService orderExecutionService,
                                  OrderQueue orderQueue,
                                  ExecutionProperties executionProperties,
                                  @Qualifier("executionWorkerExecutor") ExecutorService executionWorkerExecutor,
@@ -75,6 +77,7 @@ public class OrderProcessingEngine {
 
     public void enqueue(UUID orderId) {
         Order order = orderExecutionService.requireQueueable(orderId);
+        Map<String, String> previousContext = MDC.getCopyOfContextMap();
         MDC.put("orderId", order.getId().toString());
         MDC.put("clientId", order.getClientId());
         try {
@@ -93,6 +96,7 @@ public class OrderProcessingEngine {
         } finally {
             MDC.remove("orderId");
             MDC.remove("clientId");
+            restoreMdc(previousContext);
         }
     }
 
@@ -210,5 +214,13 @@ public class OrderProcessingEngine {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private void restoreMdc(Map<String, String> contextMap) {
+        if (contextMap == null || contextMap.isEmpty()) {
+            MDC.clear();
+            return;
+        }
+        MDC.setContextMap(contextMap);
     }
 }
