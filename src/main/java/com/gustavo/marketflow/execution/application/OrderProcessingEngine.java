@@ -3,7 +3,6 @@ package com.gustavo.marketflow.execution.application;
 import com.gustavo.marketflow.execution.domain.OrderEnqueueStatus;
 import com.gustavo.marketflow.execution.domain.OrderQueue;
 import com.gustavo.marketflow.execution.domain.QueuedOrder;
-import com.gustavo.marketflow.order.application.OrderApplicationService;
 import com.gustavo.marketflow.order.domain.Order;
 import com.gustavo.marketflow.order.domain.OrderStatus;
 import com.gustavo.marketflow.shared.exception.OrderAlreadyQueuedException;
@@ -40,7 +39,6 @@ public class OrderProcessingEngine {
 
     private static final Logger log = LoggerFactory.getLogger(OrderProcessingEngine.class);
 
-    private final OrderApplicationService orderApplicationService;
     private final OrderExecutionService orderExecutionService;
     private final OrderQueue orderQueue;
     private final ExecutionProperties executionProperties;
@@ -53,14 +51,11 @@ public class OrderProcessingEngine {
     private final Counter failedCounter;
     private final Timer processingTimer;
 
-    public OrderProcessingEngine(OrderApplicationService orderApplicationService,
-                                 OrderExecutionService orderExecutionService,
     public OrderProcessingEngine(OrderExecutionService orderExecutionService,
                                  OrderQueue orderQueue,
                                  ExecutionProperties executionProperties,
                                  @Qualifier("executionWorkerExecutor") ExecutorService executionWorkerExecutor,
                                  MeterRegistry meterRegistry) {
-        this.orderApplicationService = orderApplicationService;
         this.orderExecutionService = orderExecutionService;
         this.orderQueue = orderQueue;
         this.executionProperties = executionProperties;

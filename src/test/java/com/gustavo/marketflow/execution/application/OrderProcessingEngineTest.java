@@ -4,7 +4,6 @@ import com.gustavo.marketflow.execution.domain.OrderEnqueueStatus;
 import com.gustavo.marketflow.execution.domain.OrderQueue;
 import com.gustavo.marketflow.execution.domain.QueuedOrder;
 import com.gustavo.marketflow.order.OrderTestData;
-import com.gustavo.marketflow.order.application.OrderApplicationService;
 import com.gustavo.marketflow.order.domain.Order;
 import com.gustavo.marketflow.order.domain.OrderSide;
 import com.gustavo.marketflow.order.domain.OrderStatus;
@@ -38,9 +37,6 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class OrderProcessingEngineTest {
-
-    @Mock
-    private OrderApplicationService orderApplicationService;
 
     @Mock
     private OrderExecutionService orderExecutionService;
@@ -226,7 +222,6 @@ class OrderProcessingEngineTest {
             return thread;
         });
         return new OrderProcessingEngine(
-                orderApplicationService,
                 orderExecutionService,
                 queue,
                 new ExecutionProperties(workerCount, 10, 0),
