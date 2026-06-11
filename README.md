@@ -4,16 +4,16 @@
 > an incremental course. Each phase ships a complete vertical slice with
 > its own branch, tests and documentation.
 
-This repository is the implementation of Phase 6 of the
+This repository is the implementation of Phase 7 of the
 `MarketFlow Senior Java Cloud Lab` curriculum.
 
 ## Current phase
 
-**Phase 6 - FIX Message Engine**
+**Phase 7 - Event-driven, Retry, DLQ and Idempotency**
 
-This phase adds generation, persistence, parsing and explanation of
-simulated FIX messages. Messages are plain pipe-delimited Strings derived
-from persisted orders; this is intentionally not a real FIX session engine.
+This phase adds an internal event bus, capped exponential retry, an
+in-memory dead-letter queue and durable idempotent order creation backed by
+a PostgreSQL unique constraint.
 
 ## Stack
 
@@ -23,6 +23,7 @@ from persisted orders; this is intentionally not a real FIX session engine.
 - PostgreSQL + Flyway
 - JUnit 5 + Mockito + MockMvc + AssertJ + Testcontainers + JaCoCo
 - Simulated FIX messages without an external FIX library
+- Internal event-driven processing without Kafka or RabbitMQ
 - In-memory data structures: `PriorityQueue`, `LinkedHashMap`, `ConcurrentHashMap`, `BlockingQueue`
 - Concurrency primitives: `ExecutorService`, `CompletableFuture`, `AtomicLong`, `ReentrantLock`
 
@@ -30,6 +31,10 @@ from persisted orders; this is intentionally not a real FIX session engine.
 
 ```text
 src/main/java/com/gustavo/marketflow
+|- event
+|  |- api              # Published-event query endpoints
+|  |- domain           # Immutable business event contracts
+|  `- infrastructure   # Process-local event bus
 |- fix
 |  |- api              # FIX generation, lookup and explanation endpoints
 |  |- application      # Generator, parser, explainer and orchestration
@@ -81,6 +86,9 @@ Important runtime defaults:
 - execution worker count: `4`
 - internal queue capacity: `100`
 - simulated processing delay: `50ms`
+- retry attempts: `3`
+- initial retry backoff: `100ms`
+- maximum retry backoff: `2000ms`
 
 Every inbound HTTP request receives an `X-Correlation-Id` header. If the
 client does not provide one, the service generates it and propagates it to
@@ -112,6 +120,12 @@ Run Phase 6 tests only:
 mvn "-Dtest=FixMessageGeneratorTest,FixMessageParserTest,FixMessageExplainerTest,FixMessageApplicationServiceTest,FixControllerTest,FixMessageRepositoryIntegrationTest" test
 ```
 
+Run Phase 7 tests only:
+
+```bash
+mvn "-Dtest=InMemoryEventBusTest,EventControllerTest,RetryRegistryTest,DeadLetterQueueTest,IdempotencyRegistryTest,OrderProcessingEngineTest" test
+```
+
 Generate the JaCoCo report:
 
 ```bash
@@ -138,11 +152,18 @@ tests because they start a real PostgreSQL container.
 | POST | `/execution/start` | Start execution workers |
 | POST | `/execution/stop` | Stop execution workers |
 | GET | `/execution/stats` | Read execution-engine statistics |
+| GET | `/execution/dlq` | List orders that exhausted retry |
+| POST | `/execution/dlq/{orderId}/reprocess` | Requeue a dead-letter order |
+| GET | `/events` | List internally published domain events |
+| GET | `/events/{type}` | Filter events by type |
 | POST | `/orders/{id}/fix-message` | Generate and persist a simulated FIX message |
 | GET | `/orders/{id}/fix-message` | Read the generated FIX message |
 | GET | `/orders/{id}/fix-explanation` | Explain every persisted FIX tag |
 | POST | `/fix/explain` | Parse and explain a caller-provided FIX-like String |
 | GET | `/learning/fix` | Explain the simulation and real FIX differences |
+| GET | `/learning/event-driven` | Explain internal event delivery |
+| GET | `/learning/idempotency` | Explain durable idempotency |
+| GET | `/learning/dlq` | Explain retry and DLQ trade-offs |
 | GET | `/swagger-ui.html` | Swagger UI |
 | GET | `/v3/api-docs` | OpenAPI JSON |
 | GET | `/health/custom` | Application-owned health summary |
@@ -180,7 +201,8 @@ curl -i -X POST http://localhost:8080/orders \
     "symbol": "AAPL",
     "side": "BUY",
     "quantity": 100,
-    "price": 150.25
+    "price": 150.25,
+    "idempotencyKey": "REQ-SUCCESS-001"
   }'
 ```
 
@@ -195,7 +217,8 @@ curl -i -X POST http://localhost:8080/orders \
     "symbol": "FAIL",
     "side": "SELL",
     "quantity": 50,
-    "price": 90.10
+    "price": 90.10,
+    "idempotencyKey": "REQ-FAIL-001"
   }'
 ```
 
@@ -215,6 +238,20 @@ Read execution stats:
 
 ```bash
 curl -s http://localhost:8080/execution/stats | jq
+```
+
+Inspect events and the DLQ:
+
+```bash
+curl -s http://localhost:8080/events | jq
+curl -s http://localhost:8080/events/ORDER_RETRIED | jq
+curl -s http://localhost:8080/execution/dlq | jq
+```
+
+Reprocess an order from the DLQ:
+
+```bash
+curl -i -X POST http://localhost:8080/execution/dlq/{orderId}/reprocess
 ```
 
 Stop workers:
@@ -284,13 +321,14 @@ curl -s http://localhost:8080/v3/api-docs | jq
 - `docs/phase-04-data-structures-order-book.md`
 - `docs/phase-05-concurrency-processing-engine.md`
 - `docs/phase-06-fix-message-engine.md`
+- `docs/phase-07-event-driven-retry-dlq-idempotency.md`
 - `CONTRIBUTING.md`
 
 ## Roadmap
 
-Future phases (per the curriculum): event-driven + retry + DLQ + idempotency -> external messaging ->
-observability -> security -> resilience -> caching/scheduling ->
+Future phases (per the curriculum): external messaging -> observability ->
+security -> resilience -> caching/scheduling ->
 Docker Compose -> Kubernetes -> performance/load tests -> CI/CD.
 
-See `docs/phase-06-fix-message-engine.md` for the in-depth
+See `docs/phase-07-event-driven-retry-dlq-idempotency.md` for the in-depth
 narrative of this phase.
