@@ -14,6 +14,7 @@ Examples:
 feature/01-foundation-order-api
 feature/02-persistence-jpa-transactions
 feature/03-testing-quality-api-docs
+feature/10-resilience
 ```
 
 ## Branch lifecycle
@@ -77,7 +78,7 @@ Update your branch from `main` with a linear history:
 git fetch origin
 git switch main
 git pull origin main
-git switch feature/03-testing-quality-api-docs
+git switch feature/10-resilience
 git rebase main
 ```
 

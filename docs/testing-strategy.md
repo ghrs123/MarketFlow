@@ -67,6 +67,7 @@ Target:
 - Spring Data repositories
 - Flyway-managed schema
 - optimistic locking
+- Spring AOP proxies and Resilience4j annotations
 
 What it tests:
 
@@ -75,6 +76,8 @@ What it tests:
 - history ordering
 - optimistic locking conflicts
 - mapping from domain to JPA and back
+- circuit breaker fallback through the real Spring proxy
+- retry recovery and exhaustion through the real Spring proxy
 
 What it does not test:
 
@@ -123,6 +126,12 @@ Run JPA integration tests only:
 mvn -Dtest=OrderRepositoryIntegrationTest test
 ```
 
+Run Phase 10 resilience tests:
+
+```bash
+mvn -Dtest="ResiliencePatternsTest,ResilienceApplicationIntegrationTest,ExternalServiceControllerTest,ExecutionControllerTest,OrderProcessingEngineTest" test
+```
+
 Generate JaCoCo report:
 
 ```bash
@@ -133,3 +142,4 @@ Notes:
 
 - Docker must be available locally for Testcontainers-backed tests.
 - Integration tests start a real PostgreSQL container automatically.
+- The latest full suite contains 157 tests with zero failures and zero errors.

@@ -23,5 +23,42 @@
       "standardFlowEnabled": false,
       "protocol": "openid-connect"
     }
+  ],
+  "users": [
+    {
+      "username": "trader1",
+      "enabled": true,
+      "email": "trader1@marketflow.local",
+      "firstName": "Trader",
+      "lastName": "One",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "trader1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "TRADER"
+      ]
+    },
+    {
+      "username": "admin1",
+      "enabled": true,
+      "email": "admin1@marketflow.local",
+      "firstName": "Admin",
+      "lastName": "One",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin1",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "TRADER",
+        "ADMIN"
+      ]
+    }
   ]
 }

@@ -155,8 +155,8 @@ Covers:
 - State is lost on restart. Acceptable: persistence is Phase 2.
 - `findAll()` is unbounded. Acceptable for a study lab; paginated in
   Phase 2.
-- No security. Endpoints are open. Security is Phase 10.
-- No correlation id / structured logging. Added in Phase 9.
+- No security was included in this phase. JWT security was added in Phase 9.
+- No correlation ID or structured logging was included here. Observability was added in Phase 8.
 
 ## How to talk about this phase in an interview
 

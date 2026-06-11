@@ -9,116 +9,148 @@
       "title": "Orders Created",
       "targets": [
         {
-          "expr": "sum(marketflow_orders_created_total)",
-          "legendFormat": "created"
+          "expr": "marketflow_orders_total{application=\"marketflow-lab\"}",
+          "legendFormat": "total"
         }
       ],
-      "gridPos": {
-        "h": 8,
-        "w": 6,
-        "x": 0,
-        "y": 0
-      }
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 }
     },
     {
       "type": "timeseries",
       "title": "Order Processing Rate",
       "targets": [
         {
-          "expr": "sum(rate(marketflow_orders_executed_total[5m]))",
+          "expr": "sum(rate(marketflow_orders_executed_total{application=\"marketflow-lab\"}[5m]))",
           "legendFormat": "executed"
         },
         {
-          "expr": "sum(rate(marketflow_orders_failed_total[5m]))",
+          "expr": "sum(rate(marketflow_orders_failed_total{application=\"marketflow-lab\"}[5m]))",
           "legendFormat": "failed"
         }
       ],
-      "gridPos": {
-        "h": 8,
-        "w": 10,
-        "x": 6,
-        "y": 0
-      }
+      "gridPos": { "h": 8, "w": 10, "x": 6, "y": 0 }
     },
     {
       "type": "gauge",
       "title": "Order Queue Size",
       "targets": [
         {
-          "expr": "marketflow_order_queue_size",
+          "expr": "marketflow_order_queue_size{application=\"marketflow-lab\"}",
           "legendFormat": "queued"
         }
       ],
-      "gridPos": {
-        "h": 8,
-        "w": 4,
-        "x": 16,
-        "y": 0
-      }
+      "gridPos": { "h": 8, "w": 4, "x": 16, "y": 0 }
     },
     {
       "type": "stat",
       "title": "DLQ Size",
       "targets": [
         {
-          "expr": "marketflow_dead_letter_queue_size",
+          "expr": "marketflow_dead_letter_queue_size{application=\"marketflow-lab\"}",
           "legendFormat": "dead letters"
         }
       ],
-      "gridPos": {
-        "h": 8,
-        "w": 4,
-        "x": 20,
-        "y": 0
-      }
+      "gridPos": { "h": 8, "w": 4, "x": 20, "y": 0 }
     },
     {
       "type": "timeseries",
       "title": "Processing Latency p95",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(marketflow_order_processing_duration_seconds_bucket[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(marketflow_order_processing_duration_seconds_bucket{application=\"marketflow-lab\"}[5m])) by (le))",
           "legendFormat": "p95"
         }
       ],
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      }
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 }
     },
     {
       "type": "timeseries",
-      "title": "HTTP Request Rate",
+      "title": "HTTP Request Rate by Status",
       "targets": [
         {
-          "expr": "sum by (status) (rate(marketflow_http_server_requests_seconds_count[5m]))",
+          "expr": "sum by (status) (rate(marketflow_http_server_requests_seconds_count{application=\"marketflow-lab\"}[5m]))",
           "legendFormat": "{{status}}"
         }
       ],
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
-      }
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 }
+    },
+    {
+      "type": "stat",
+      "title": "Active Workers",
+      "targets": [
+        {
+          "expr": "marketflow_active_workers{application=\"marketflow-lab\"}",
+          "legendFormat": "workers"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 4, "x": 0, "y": 16 }
+    },
+    {
+      "type": "stat",
+      "title": "Orders Queued",
+      "targets": [
+        {
+          "expr": "marketflow_orders_queued_total{application=\"marketflow-lab\"}",
+          "legendFormat": "queued"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 4, "x": 4, "y": 16 }
+    },
+    {
+      "type": "stat",
+      "title": "Orders Executed",
+      "targets": [
+        {
+          "expr": "marketflow_orders_executed_total{application=\"marketflow-lab\"}",
+          "legendFormat": "executed"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 4, "x": 8, "y": 16 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Circuit Breaker State",
+      "targets": [
+        {
+          "expr": "resilience4j_circuitbreaker_state{application=\"marketflow-lab\",state=\"open\"}",
+          "legendFormat": "{{name}} open"
+        },
+        {
+          "expr": "resilience4j_circuitbreaker_state{application=\"marketflow-lab\",state=\"half_open\"}",
+          "legendFormat": "{{name}} half_open"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Order Creation Duration p95",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(marketflow_order_creation_duration_seconds_bucket{application=\"marketflow-lab\"}[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Rate Limiter Available Permissions",
+      "targets": [
+        {
+          "expr": "resilience4j_ratelimiter_available_permissions{application=\"marketflow-lab\"}",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 }
     }
   ],
   "schemaVersion": 39,
-  "tags": [
-    "marketflow",
-    "observability"
-  ],
-  "templating": {
-    "list": []
-  },
-  "time": {
-    "from": "now-1h",
-    "to": "now"
-  },
+  "tags": ["marketflow", "observability"],
+  "templating": { "list": [] },
+  "time": { "from": "now-1h", "to": "now" },
   "timezone": "browser",
   "title": "MarketFlow Operations",
   "uid": "marketflow-operations",
-  "version": 1
+  "version": 2
 }

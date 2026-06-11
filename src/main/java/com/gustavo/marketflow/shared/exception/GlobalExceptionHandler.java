@@ -124,6 +124,29 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(OrderRateLimitExceededException.class)
+    public ProblemDetail handleOrderRateLimitExceeded(OrderRateLimitExceededException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "Too many order creation requests");
+        problem.setTitle("Rate limit exceeded");
+        problem.setType(URI.create("https://marketflow.local/errors/order-rate-limit"));
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
+
+    @ExceptionHandler(ExternalServiceUnavailableException.class)
+    public ProblemDetail handleExternalServiceUnavailable(ExternalServiceUnavailableException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "A required dependency is temporarily unavailable");
+        problem.setTitle("External service unavailable");
+        problem.setType(URI.create("https://marketflow.local/errors/external-service-unavailable"));
+        problem.setProperty("service", ex.getServiceName());
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
+
     @ExceptionHandler(DeadLetterMessageNotFoundException.class)
     public ProblemDetail handleDeadLetterMessageNotFound(DeadLetterMessageNotFoundException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
