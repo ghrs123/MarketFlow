@@ -4,21 +4,22 @@
 > an incremental course. Each phase ships a complete vertical slice with
 > its own branch, tests and documentation.
 
-This repository is the implementation of Phase 8 of the
+This repository is the implementation of Phase 9 of the
 `MarketFlow Senior Java Cloud Lab` curriculum.
 
 ## Current phase
 
-**Phase 8 - Observability**
+**Phase 9 - JWT Security with Keycloak**
 
-This phase adds correlation IDs, MDC propagation, structured and audit logs,
-Micrometer/Prometheus metrics, dependency health indicators, an operational
-summary and Grafana/Prometheus configuration.
+This phase secures the API as an OAuth2 Resource Server, validates Keycloak
+JWTs, enforces `TRADER` and `ADMIN` roles and retains correlated observability
+for authenticated and rejected requests.
 
 ## Stack
 
 - Java 21
-- Spring Boot 3.3.5 (Web, Validation, Actuator, Data JPA)
+- Spring Boot 3.3.5 (Web, Validation, Actuator, Data JPA, Security)
+- OAuth2 Resource Server + JWT + Keycloak
 - Micrometer + Prometheus registry
 - Maven
 - PostgreSQL + Flyway
@@ -58,6 +59,7 @@ src/main/java/com/gustavo/marketflow
 |  |- application
 |  `- domain
 |- monitoring          # Operational summary, metrics and health indicators
+|- security            # JWT conversion, authorization and security errors
 `- shared
 |  |- config
 |  |- exception
@@ -74,6 +76,8 @@ Example local environment variables:
 export DB_URL=jdbc:postgresql://localhost:5432/marketflow
 export DB_USERNAME=marketflow
 export DB_PASSWORD=marketflow
+export KEYCLOAK_ISSUER_URI=http://localhost:8180/realms/marketflow
+export KEYCLOAK_JWK_SET_URI=http://localhost:8180/realms/marketflow/protocol/openid-connect/certs
 ```
 
 ```bash
@@ -94,6 +98,10 @@ Important runtime defaults:
 Every inbound HTTP request receives an `X-Correlation-Id` header. If the
 client does not provide one, the service generates it and propagates it to
 async worker threads through MDC context capture.
+
+Protected endpoints require `Authorization: Bearer <token>`. Import
+`keycloak/marketflow-realm.json`, create Keycloak users and assign the
+`TRADER` or `ADMIN` realm role.
 
 ## How to test
 
@@ -131,6 +139,12 @@ Run Phase 8 tests only:
 
 ```bash
 mvn "-Dtest=CorrelationIdFilterTest,MdcTaskDecoratorTest,OrderMetricsServiceTest,OrderQueueHealthIndicatorTest,DeadLetterQueueHealthIndicatorTest,MonitoringSummaryControllerTest" test
+```
+
+Run Phase 9 security tests only:
+
+```bash
+mvn "-Dtest=SecurityIntegrationTest,KeycloakRealmRoleConverterTest,AuthenticatedUserMdcFilterTest" test
 ```
 
 Generate the JaCoCo report:
@@ -182,6 +196,9 @@ tests because they start a real PostgreSQL container.
 | GET | `/learning/logging` | Explain structured logs, correlation and MDC |
 | GET | `/learning/monitoring` | Explain metrics and health signals |
 | GET | `/learning/performance/jvm` | Read a JVM runtime snapshot |
+| GET | `/learning/security` | Explain authentication and authorization |
+| GET | `/learning/jwt` | Explain JWT validation and claims |
+| GET | `/learning/keycloak` | Explain the Keycloak integration |
 | GET | `/learning/spring/beans` | Notes on Spring DI and bean inspection |
 | GET | `/learning/rest` | Notes on REST design |
 | GET | `/learning/validation` | Notes on Bean Validation |
@@ -202,11 +219,27 @@ tests because they start a real PostgreSQL container.
 
 ## curl examples
 
+Obtain a token from the configured Keycloak realm:
+
+```bash
+export TOKEN=$(
+  curl -s -X POST \
+    http://localhost:8180/realms/marketflow/protocol/openid-connect/token \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d client_id=marketflow-cli \
+    -d username="$KEYCLOAK_USERNAME" \
+    -d password="$KEYCLOAK_PASSWORD" \
+    -d grant_type=password |
+  jq -r .access_token
+)
+```
+
 Create an order that should execute successfully:
 
 ```bash
 curl -i -X POST http://localhost:8080/orders \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "X-Correlation-Id: demo-success-1" \
   -d '{
     "clientId": "C001",
@@ -223,6 +256,7 @@ Create an order that should fail during processing:
 ```bash
 curl -i -X POST http://localhost:8080/orders \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "X-Correlation-Id: demo-fail-1" \
   -d '{
     "clientId": "C002",
@@ -237,57 +271,65 @@ curl -i -X POST http://localhost:8080/orders \
 Start workers:
 
 ```bash
-curl -i -X POST http://localhost:8080/execution/start
+curl -i -X POST http://localhost:8080/execution/start \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 Queue an order for async processing:
 
 ```bash
-curl -i -X POST http://localhost:8080/orders/{id}/queue
+curl -i -X POST http://localhost:8080/orders/{id}/queue \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 Read execution stats:
 
 ```bash
-curl -s http://localhost:8080/execution/stats | jq
+curl -s http://localhost:8080/execution/stats \
+  -H "Authorization: Bearer $TOKEN" | jq
 ```
 
 Inspect events and the DLQ:
 
 ```bash
-curl -s http://localhost:8080/events | jq
-curl -s http://localhost:8080/events/ORDER_RETRIED | jq
-curl -s http://localhost:8080/execution/dlq | jq
+curl -s http://localhost:8080/events -H "Authorization: Bearer $TOKEN" | jq
+curl -s http://localhost:8080/events/ORDER_RETRIED -H "Authorization: Bearer $TOKEN" | jq
+curl -s http://localhost:8080/execution/dlq -H "Authorization: Bearer $TOKEN" | jq
 ```
 
 Reprocess an order from the DLQ:
 
 ```bash
-curl -i -X POST http://localhost:8080/execution/dlq/{orderId}/reprocess
+curl -i -X POST http://localhost:8080/execution/dlq/{orderId}/reprocess \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 Stop workers:
 
 ```bash
-curl -i -X POST http://localhost:8080/execution/stop
+curl -i -X POST http://localhost:8080/execution/stop \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 Generate a simulated FIX message:
 
 ```bash
-curl -i -X POST http://localhost:8080/orders/{id}/fix-message
+curl -i -X POST http://localhost:8080/orders/{id}/fix-message \
+  -H "Authorization: Bearer $TOKEN"
 ```
 
 Read the persisted message:
 
 ```bash
-curl -s http://localhost:8080/orders/{id}/fix-message | jq
+curl -s http://localhost:8080/orders/{id}/fix-message \
+  -H "Authorization: Bearer $TOKEN" | jq
 ```
 
 Explain the persisted message:
 
 ```bash
-curl -s http://localhost:8080/orders/{id}/fix-explanation | jq
+curl -s http://localhost:8080/orders/{id}/fix-explanation \
+  -H "Authorization: Bearer $TOKEN" | jq
 ```
 
 Explain a raw simulated FIX message:
@@ -295,6 +337,7 @@ Explain a raw simulated FIX message:
 ```bash
 curl -s -X POST http://localhost:8080/fix/explain \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{
     "rawMessage": "8=FIX.4.4|35=D|49=MARKETFLOW|56=SIMULATED_BROKER|11=demo-1|55=AAPL|54=1|38=100|40=2|44=150.25|52=2026-01-15T10:30:00Z"
   }' | jq
@@ -303,7 +346,8 @@ curl -s -X POST http://localhost:8080/fix/explain \
 Read the order book snapshot:
 
 ```bash
-curl -s http://localhost:8080/order-book | jq
+curl -s http://localhost:8080/order-book \
+  -H "Authorization: Bearer $TOKEN" | jq
 ```
 
 Read concurrency learning endpoints:
@@ -334,13 +378,14 @@ curl -s http://localhost:8080/v3/api-docs | jq
 - `docs/phase-05-concurrency-processing-engine.md`
 - `docs/phase-06-fix-message-engine.md`
 - `docs/phase-07-event-driven-retry-dlq-idempotency.md`
+- `docs/phase-08-observability.md`
+- `docs/phase-09-security.md`
 - `CONTRIBUTING.md`
 
 ## Roadmap
 
-Future phases (per the curriculum): external messaging -> observability ->
-security -> resilience -> caching/scheduling ->
+Future phases: resilience -> caching/scheduling ->
 Docker Compose -> Kubernetes -> performance/load tests -> CI/CD.
 
-See `docs/phase-07-event-driven-retry-dlq-idempotency.md` for the in-depth
+See `docs/phase-09-security.md` for the in-depth
 narrative of this phase.

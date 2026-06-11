@@ -27,6 +27,12 @@ spring:
     enabled: true
   jackson:
     default-property-inclusion: non_null
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/marketflow}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/marketflow/protocol/openid-connect/certs}
 
 springdoc:
   api-docs:
@@ -43,7 +49,8 @@ management:
         include: health,info,metrics,prometheus
   endpoint:
     health:
-      show-details: always
+      show-details: when_authorized
+      roles: ADMIN
       probes:
         enabled: true
       group:
@@ -68,8 +75,8 @@ management:
 info:
   app:
     name: marketflow-lab
-    phase: 08-observability
-    description: MarketFlow Senior Java Cloud Lab - Observability
+    phase: 09-security
+    description: MarketFlow Senior Java Cloud Lab - JWT Security
 
 marketflow:
   execution:

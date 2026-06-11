@@ -1,5 +1,6 @@
 package com.gustavo.marketflow.order.api;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import com.gustavo.marketflow.order.application.OrderApplicationService;
 import com.gustavo.marketflow.order.domain.Order;
 import com.gustavo.marketflow.order.domain.OrderStatus;
@@ -8,6 +9,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,6 +44,8 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/orders")
 @Validated
+@PreAuthorize("hasAnyRole('TRADER', 'ADMIN')")
+@SecurityRequirement(name = "bearerAuth")
 public class OrderController {
 
     private final OrderApplicationService orderApplicationService;

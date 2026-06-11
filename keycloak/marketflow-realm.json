@@ -1,0 +1,27 @@
+{
+  "realm": "marketflow",
+  "enabled": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "TRADER",
+        "description": "Operates orders, order book and simulated FIX messages"
+      },
+      {
+        "name": "ADMIN",
+        "description": "Operates monitoring, events and execution administration"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "marketflow-cli",
+      "name": "MarketFlow CLI",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": false,
+      "protocol": "openid-connect"
+    }
+  ]
+}
