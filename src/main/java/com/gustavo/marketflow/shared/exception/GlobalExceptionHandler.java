@@ -124,6 +124,15 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(DeadLetterMessageNotFoundException.class)
+    public ProblemDetail handleDeadLetterMessageNotFound(DeadLetterMessageNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("Dead-letter message not found");
+        problem.setType(URI.create("https://marketflow.local/errors/dead-letter-message-not-found"));
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
+
     @ExceptionHandler(EmptyOrderBookSideException.class)
     public ProblemDetail handleEmptyOrderBookSide(EmptyOrderBookSideException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());

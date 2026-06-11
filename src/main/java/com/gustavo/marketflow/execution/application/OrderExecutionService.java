@@ -78,6 +78,23 @@ public class OrderExecutionService {
         return updatedOrder;
     }
 
+    @Transactional
+    public Order resetForReprocessing(UUID orderId) {
+        Order order = requireExisting(orderId);
+        OrderStatus previousStatus = order.getStatus();
+        order.changeStatus(OrderStatus.NEW);
+        Order updatedOrder = orderRepository.updateStatus(order.getId(), order.getStatus(), order.getUpdatedAt());
+        saveHistory(updatedOrder, "ORDER_DLQ_REPROCESSED", previousStatus, updatedOrder.getStatus(), null);
+        return updatedOrder;
+    }
+
+    @Transactional
+    public void recordRetry(UUID orderId, int attempt, long backoffMillis) {
+        Order order = requireExisting(orderId);
+        String payload = "{\"attempt\":" + attempt + ",\"backoffMillis\":" + backoffMillis + "}";
+        saveHistory(order, "ORDER_RETRIED", order.getStatus(), order.getStatus(), payload);
+    }
+
     private Order requireExisting(UUID orderId) {
         return orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
