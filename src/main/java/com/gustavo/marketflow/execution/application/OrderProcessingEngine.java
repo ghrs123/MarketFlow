@@ -11,12 +11,14 @@ import com.gustavo.marketflow.execution.domain.OrderEnqueueStatus;
 import com.gustavo.marketflow.execution.domain.OrderQueue;
 import com.gustavo.marketflow.execution.domain.QueuedOrder;
 import com.gustavo.marketflow.execution.domain.RetryPolicy;
+import com.gustavo.marketflow.monitoring.application.AuditLogService;
+import com.gustavo.marketflow.monitoring.application.OrderMetricsService;
 import com.gustavo.marketflow.order.domain.Order;
 import com.gustavo.marketflow.order.domain.OrderStatus;
 import com.gustavo.marketflow.shared.exception.OrderAlreadyQueuedException;
 import com.gustavo.marketflow.shared.exception.DeadLetterMessageNotFoundException;
 import com.gustavo.marketflow.shared.exception.OrderQueueFullException;
-import io.micrometer.core.instrument.Counter;
+import com.gustavo.marketflow.shared.logging.MdcContext;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import jakarta.annotation.PreDestroy;
@@ -57,13 +59,10 @@ public class OrderProcessingEngine {
     private final InMemoryEventBus eventBus;
     private final RetryPolicy retryPolicy;
     private final ExecutorService executionWorkerExecutor;
+    private final OrderMetricsService orderMetricsService;
+    private final AuditLogService auditLogService;
     private final List<Future<?>> workerFutures;
     private final AtomicBoolean running;
-    private final Counter queuedCounter;
-    private final Counter succeededCounter;
-    private final Counter failedCounter;
-    private final Counter retryCounter;
-    private final Counter deadLetterCounter;
     private final Timer processingTimer;
 
     public OrderProcessingEngine(OrderExecutionService orderExecutionService,
@@ -73,6 +72,8 @@ public class OrderProcessingEngine {
                                  DeadLetterQueue deadLetterQueue,
                                  InMemoryEventBus eventBus,
                                  @Qualifier("executionWorkerExecutor") ExecutorService executionWorkerExecutor,
+                                 OrderMetricsService orderMetricsService,
+                                 AuditLogService auditLogService,
                                  MeterRegistry meterRegistry) {
         this.orderExecutionService = orderExecutionService;
         this.orderQueue = orderQueue;
@@ -87,23 +88,24 @@ public class OrderProcessingEngine {
                 executionProperties.retryMaxBackoffMillis()
         );
         this.executionWorkerExecutor = executionWorkerExecutor;
+        this.orderMetricsService = orderMetricsService;
+        this.auditLogService = auditLogService;
         this.workerFutures = new CopyOnWriteArrayList<>();
         this.running = new AtomicBoolean(false);
-        this.queuedCounter = meterRegistry.counter("marketflow.order.queued");
-        this.succeededCounter = meterRegistry.counter("marketflow.order.processed.success");
-        this.failedCounter = meterRegistry.counter("marketflow.order.processed.failure");
-        this.retryCounter = meterRegistry.counter("marketflow.order.retry");
-        this.deadLetterCounter = meterRegistry.counter("marketflow.order.dead.letter");
         this.processingTimer = meterRegistry.timer("marketflow.order.processing.duration");
         meterRegistry.gauge("marketflow.order.queue.size", orderQueue, OrderQueue::size);
+        meterRegistry.gauge("marketflow.dead.letter.queue.size", deadLetterQueue, DeadLetterQueue::size);
+        meterRegistry.gauge("marketflow.active.workers", this, OrderProcessingEngine::activeWorkerCount);
     }
 
     public void enqueue(UUID orderId) {
         Order order = orderExecutionService.requireQueueable(orderId);
-        Map<String, String> previousContext = MDC.getCopyOfContextMap();
-        MDC.put("orderId", order.getId().toString());
-        MDC.put("clientId", order.getClientId());
-        try {
+        Map<String, String> context = MDC.getCopyOfContextMap() == null
+                ? new java.util.HashMap<>()
+                : new java.util.HashMap<>(MDC.getCopyOfContextMap());
+        context.put("orderId", order.getId().toString());
+        context.put("clientId", order.getClientId());
+        MdcContext.runWith(context, () -> {
             OrderEnqueueStatus enqueueStatus = orderQueue.enqueue(QueuedOrder.capture(orderId));
             if (enqueueStatus == OrderEnqueueStatus.DUPLICATE) {
                 throw new OrderAlreadyQueuedException(orderId);
@@ -115,13 +117,10 @@ public class OrderProcessingEngine {
             orderExecutionService.recordQueued(orderId);
             eventBus.publish(OrderQueuedEvent.now(orderId));
             executionStatistics.recordQueued();
-            queuedCounter.increment();
+            orderMetricsService.recordQueued();
+            auditLogService.recordOrderEvent("ORDER_QUEUED", orderId, "QUEUED");
             log.info("Order {} queued for asynchronous processing", orderId);
-        } finally {
-            MDC.remove("orderId");
-            MDC.remove("clientId");
-            restoreMdc(previousContext);
-        }
+        });
     }
 
     public void start() {
@@ -172,6 +171,7 @@ public class OrderProcessingEngine {
         orderExecutionService.resetForReprocessing(orderId);
         try {
             enqueue(orderId);
+            auditLogService.recordOrderEvent("DLQ_REPROCESS", orderId, "QUEUED");
             log.info("Dead-letter order {} queued for reprocessing", orderId);
         } catch (RuntimeException ex) {
             deadLetterQueue.add(deadLetterMessage);
@@ -188,7 +188,7 @@ public class OrderProcessingEngine {
                     executionResult.orderId(), executionResult.outcome(), executionResult.workerName());
         } catch (RuntimeException ex) {
             executionStatistics.recordProcessed(false);
-            failedCounter.increment();
+            orderMetricsService.recordFailed();
             log.error("Order {} processing failed unexpectedly", queuedOrder.orderId(), ex);
             try {
                 orderExecutionService.markFailed(queuedOrder.orderId(), "Unhandled worker exception");
@@ -225,7 +225,8 @@ public class OrderProcessingEngine {
                 retryRegistry.clear(order.getId());
                 eventBus.publish(OrderExecutedEvent.now(order.getId()));
                 executionStatistics.recordProcessed(true);
-                succeededCounter.increment();
+                orderMetricsService.recordExecuted();
+                auditLogService.recordOrderEvent("ORDER_EXECUTED", order.getId(), "EXECUTED");
                 return result(executedOrder, true, "EXECUTED");
             }
 
@@ -240,16 +241,17 @@ public class OrderProcessingEngine {
                         queuedOrder.mdcContext()
                 ));
                 eventBus.publish(OrderMovedToDeadLetterEvent.now(order.getId(), attempt));
-                deadLetterCounter.increment();
+                orderMetricsService.recordDeadLettered();
                 executionStatistics.recordProcessed(false);
-                failedCounter.increment();
+                orderMetricsService.recordFailed();
+                auditLogService.recordOrderEvent("ORDER_DLQ", order.getId(), "DEAD_LETTERED");
                 return result(failedOrder, false, "DEAD_LETTERED");
             }
 
             long backoffMillis = retryPolicy.backoffMillisFor(attempt);
             orderExecutionService.recordRetry(order.getId(), attempt + 1, backoffMillis);
             eventBus.publish(OrderRetriedEvent.now(order.getId(), attempt + 1, backoffMillis));
-            retryCounter.increment();
+            orderMetricsService.recordRetried();
             pause(backoffMillis);
         }
     }
@@ -282,11 +284,9 @@ public class OrderProcessingEngine {
         }
     }
 
-    private void restoreMdc(Map<String, String> contextMap) {
-        if (contextMap == null || contextMap.isEmpty()) {
-            MDC.clear();
-            return;
-        }
-        MDC.setContextMap(contextMap);
+    private double activeWorkerCount() {
+        return workerFutures.stream()
+                .filter(workerFuture -> !workerFuture.isDone())
+                .count();
     }
 }

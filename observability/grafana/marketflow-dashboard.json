@@ -1,0 +1,124 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Orders Created",
+      "targets": [
+        {
+          "expr": "sum(marketflow_orders_created_total)",
+          "legendFormat": "created"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Order Processing Rate",
+      "targets": [
+        {
+          "expr": "sum(rate(marketflow_orders_executed_total[5m]))",
+          "legendFormat": "executed"
+        },
+        {
+          "expr": "sum(rate(marketflow_orders_failed_total[5m]))",
+          "legendFormat": "failed"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 10,
+        "x": 6,
+        "y": 0
+      }
+    },
+    {
+      "type": "gauge",
+      "title": "Order Queue Size",
+      "targets": [
+        {
+          "expr": "marketflow_order_queue_size",
+          "legendFormat": "queued"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      }
+    },
+    {
+      "type": "stat",
+      "title": "DLQ Size",
+      "targets": [
+        {
+          "expr": "marketflow_dead_letter_queue_size",
+          "legendFormat": "dead letters"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Processing Latency p95",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(marketflow_order_processing_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Request Rate",
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(marketflow_http_server_requests_seconds_count[5m]))",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": [
+    "marketflow",
+    "observability"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "MarketFlow Operations",
+  "uid": "marketflow-operations",
+  "version": 1
+}

@@ -4,21 +4,22 @@
 > an incremental course. Each phase ships a complete vertical slice with
 > its own branch, tests and documentation.
 
-This repository is the implementation of Phase 7 of the
+This repository is the implementation of Phase 8 of the
 `MarketFlow Senior Java Cloud Lab` curriculum.
 
 ## Current phase
 
-**Phase 7 - Event-driven, Retry, DLQ and Idempotency**
+**Phase 8 - Observability**
 
-This phase adds an internal event bus, capped exponential retry, an
-in-memory dead-letter queue and durable idempotent order creation backed by
-a PostgreSQL unique constraint.
+This phase adds correlation IDs, MDC propagation, structured and audit logs,
+Micrometer/Prometheus metrics, dependency health indicators, an operational
+summary and Grafana/Prometheus configuration.
 
 ## Stack
 
 - Java 21
 - Spring Boot 3.3.5 (Web, Validation, Actuator, Data JPA)
+- Micrometer + Prometheus registry
 - Maven
 - PostgreSQL + Flyway
 - JUnit 5 + Mockito + MockMvc + AssertJ + Testcontainers + JaCoCo
@@ -56,11 +57,11 @@ src/main/java/com/gustavo/marketflow
 |  |- api
 |  |- application
 |  `- domain
-|- shared
+|- monitoring          # Operational summary, metrics and health indicators
+`- shared
 |  |- config
 |  |- exception
 |  `- logging
-`- monitoring
 ```
 
 ## How to run
@@ -126,6 +127,12 @@ Run Phase 7 tests only:
 mvn "-Dtest=InMemoryEventBusTest,EventControllerTest,RetryRegistryTest,DeadLetterQueueTest,IdempotencyRegistryTest,OrderProcessingEngineTest" test
 ```
 
+Run Phase 8 tests only:
+
+```bash
+mvn "-Dtest=CorrelationIdFilterTest,MdcTaskDecoratorTest,OrderMetricsServiceTest,OrderQueueHealthIndicatorTest,DeadLetterQueueHealthIndicatorTest,MonitoringSummaryControllerTest" test
+```
+
 Generate the JaCoCo report:
 
 ```bash
@@ -170,6 +177,11 @@ tests because they start a real PostgreSQL container.
 | GET | `/actuator/health` | Spring Boot Actuator health |
 | GET | `/actuator/info` | Application info |
 | GET | `/actuator/metrics` | Available metrics |
+| GET | `/actuator/prometheus` | Prometheus metrics |
+| GET | `/monitoring/summary` | Operational processing summary |
+| GET | `/learning/logging` | Explain structured logs, correlation and MDC |
+| GET | `/learning/monitoring` | Explain metrics and health signals |
+| GET | `/learning/performance/jvm` | Read a JVM runtime snapshot |
 | GET | `/learning/spring/beans` | Notes on Spring DI and bean inspection |
 | GET | `/learning/rest` | Notes on REST design |
 | GET | `/learning/validation` | Notes on Bean Validation |
