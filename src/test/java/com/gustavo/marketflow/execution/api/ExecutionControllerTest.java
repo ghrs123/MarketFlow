@@ -2,7 +2,9 @@ package com.gustavo.marketflow.execution.api;
 
 import com.gustavo.marketflow.execution.application.ExecutionStats;
 import com.gustavo.marketflow.execution.application.OrderProcessingEngine;
+import com.gustavo.marketflow.execution.application.OrderExecutionService;
 import com.gustavo.marketflow.execution.domain.DeadLetterMessage;
+import com.gustavo.marketflow.resilience.application.BrokerExecutionResult;
 import com.gustavo.marketflow.shared.exception.GlobalExceptionHandler;
 import com.gustavo.marketflow.shared.exception.OrderAlreadyQueuedException;
 import com.gustavo.marketflow.shared.exception.OrderNotFoundException;
@@ -36,11 +38,14 @@ class ExecutionControllerTest {
     @Mock
     private OrderProcessingEngine orderProcessingEngine;
 
+    @Mock
+    private OrderExecutionService orderExecutionService;
+
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        ExecutionController controller = new ExecutionController(orderProcessingEngine);
+        ExecutionController controller = new ExecutionController(orderProcessingEngine, orderExecutionService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .setMessageConverters(new MappingJackson2HttpMessageConverter())
@@ -99,6 +104,24 @@ class ExecutionControllerTest {
         mockMvc.perform(post("/orders/{id}/queue", "invalid-uuid"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type", is("https://marketflow.local/errors/invalid-argument")));
+    }
+
+    @Test
+    void postExecuteWithBroker_success_returnsBrokerOutcome() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(orderExecutionService.executeWithBroker(orderId)).thenReturn(new BrokerExecutionResult(
+                orderId,
+                "BROKER_ACCEPTED",
+                "BRK-123",
+                false,
+                Instant.parse("2026-01-15T10:30:00Z")
+        ));
+
+        mockMvc.perform(post("/orders/{id}/execute-with-broker", orderId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.orderId", is(orderId.toString())))
+                .andExpect(jsonPath("$.status", is("BROKER_ACCEPTED")))
+                .andExpect(jsonPath("$.fallback", is(false)));
     }
 
     @Test

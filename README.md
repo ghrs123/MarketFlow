@@ -4,22 +4,23 @@
 > an incremental course. Each phase ships a complete vertical slice with
 > its own branch, tests and documentation.
 
-This repository is the implementation of Phase 9 of the
+This repository is the implementation of Phase 10 of the
 `MarketFlow Senior Java Cloud Lab` curriculum.
 
 ## Current phase
 
-**Phase 9 - JWT Security with Keycloak**
+**Phase 10 - Resilience patterns with Resilience4j**
 
-This phase secures the API as an OAuth2 Resource Server, validates Keycloak
-JWTs, enforces `TRADER` and `ADMIN` roles and retains correlated observability
-for authenticated and rejected requests.
+This phase protects simulated dependencies and processing capacity with
+Circuit Breaker, Retry, Rate Limiter and Bulkhead while retaining JWT security,
+correlated observability and Prometheus metrics.
 
 ## Stack
 
 - Java 21
 - Spring Boot 3.3.5 (Web, Validation, Actuator, Data JPA, Security)
 - OAuth2 Resource Server + JWT + Keycloak
+- Resilience4j Circuit Breaker, Retry, Rate Limiter and Bulkhead
 - Micrometer + Prometheus registry
 - Maven
 - PostgreSQL + Flyway
@@ -59,49 +60,77 @@ src/main/java/com/gustavo/marketflow
 |  |- application
 |  `- domain
 |- monitoring          # Operational summary, metrics and health indicators
+|- resilience          # Simulated dependencies and fault-tolerance contracts
 |- security            # JWT conversion, authorization and security errors
 `- shared
-|  |- config
-|  |- exception
-|  `- logging
+   |- config
+   |- exception
+   `- logging
 ```
+
+## Prerequisites
+
+| Tool | Version | Purpose |
+|---|---|---|
+| JDK | 21 | Runtime |
+| Maven | 3.9+ | Build |
+| PostgreSQL | 14+ | Persistence |
+| Keycloak | 24+ | Identity provider |
+| Docker | any | Testcontainers + optional monitoring |
 
 ## How to run
 
-Requires JDK 21, Maven 3.9+ and a PostgreSQL instance.
-
-Example local environment variables:
+### 1. Start PostgreSQL
 
 ```bash
-export DB_URL=jdbc:postgresql://localhost:5432/marketflow
+docker run -d --name marketflow-db \
+  -e POSTGRES_DB=marketflow \
+  -e POSTGRES_USER=marketflow \
+  -e POSTGRES_PASSWORD=marketflow \
+  -p 5433:5432 \
+  postgres:16-alpine
+```
+
+### 2. Start Keycloak
+
+```bash
+docker run -d --name keycloak \
+  -p 8180:8080 \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=admin \
+  quay.io/keycloak/keycloak:24.0.0 \
+  start-dev
+```
+
+Import the realm:
+1. Open `http://localhost:8180` → login `admin/admin`
+2. Create realm → Import → select `keycloak/marketflow-realm.json`
+3. Create users with roles `TRADER` and `ADMIN` in the realm
+
+### 3. Start the application
+
+```bash
+export DB_URL=jdbc:postgresql://localhost:5433/marketflow
 export DB_USERNAME=marketflow
 export DB_PASSWORD=marketflow
 export KEYCLOAK_ISSUER_URI=http://localhost:8180/realms/marketflow
 export KEYCLOAK_JWK_SET_URI=http://localhost:8180/realms/marketflow/protocol/openid-connect/certs
-```
 
-```bash
 mvn spring-boot:run
 ```
 
-Default port: `8080`.
+- API: `http://localhost:8080`
+- Actuator / metrics: `http://localhost:8081/actuator`
 
-Important runtime defaults:
+### 4. Obtain a token
 
-- execution worker count: `4`
-- internal queue capacity: `100`
-- simulated processing delay: `50ms`
-- retry attempts: `3`
-- initial retry backoff: `100ms`
-- maximum retry backoff: `2000ms`
-
-Every inbound HTTP request receives an `X-Correlation-Id` header. If the
-client does not provide one, the service generates it and propagates it to
-async worker threads through MDC context capture.
-
-Protected endpoints require `Authorization: Bearer <token>`. Import
-`keycloak/marketflow-realm.json`, create Keycloak users and assign the
-`TRADER` or `ADMIN` realm role.
+```bash
+TOKEN=$(curl -s -X POST \
+  http://localhost:8180/realms/marketflow/protocol/openid-connect/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password&client_id=marketflow-cli&username=admin1&password=admin1" \
+  | jq -r '.access_token')
+```
 
 ## How to test
 
@@ -111,262 +140,160 @@ Run the full suite:
 mvn test
 ```
 
-Run the existing order and order-book tests only:
+Run tests by phase:
 
 ```bash
-mvn -Dtest=OrderApplicationServiceTest,OrderControllerTest,OrderRepositoryIntegrationTest,OrderBookApplicationServiceTest,OrderBookControllerTest,OrderBookTest,RecentOrderCacheTest test
+# Phase 1-2: orders and persistence
+mvn -Dtest="OrderApplicationServiceTest,OrderControllerTest,OrderRepositoryIntegrationTest" test
+
+# Phase 4: order book and data structures
+mvn -Dtest="OrderBookApplicationServiceTest,OrderBookControllerTest,OrderBookTest,RecentOrderCacheTest" test
+
+# Phase 5: concurrency and processing engine
+mvn -Dtest="OrderProcessingEngineTest,ExecutionControllerTest,ExecutionStatisticsTest" test
+
+# Phase 6: FIX message engine
+mvn -Dtest="FixMessageGeneratorTest,FixMessageParserTest,FixControllerTest,FixMessageRepositoryIntegrationTest" test
+
+# Phase 7: event-driven, retry, DLQ, idempotency
+mvn -Dtest="InMemoryEventBusTest,EventControllerTest,RetryRegistryTest,DeadLetterQueueTest,IdempotencyRegistryTest" test
+
+# Phase 8: observability
+mvn -Dtest="CorrelationIdFilterTest,MdcTaskDecoratorTest,OrderMetricsServiceTest,MonitoringSummaryControllerTest" test
+
+# Phase 9: security
+mvn -Dtest="SecurityIntegrationTest,KeycloakRealmRoleConverterTest,AuthenticatedUserMdcFilterTest" test
+
+# Phase 10: resilience
+mvn -Dtest="ResiliencePatternsTest,ExternalServiceControllerTest" test
 ```
 
-Run Phase 5 tests only:
-
-```bash
-mvn -Dtest=OrderProcessingEngineTest,ExecutionControllerTest,ExecutionStatisticsTest,RaceConditionDemoTest,AtomicCounterDemoTest,CompletableFutureDemoTest test
-```
-
-Run Phase 6 tests only:
-
-```bash
-mvn "-Dtest=FixMessageGeneratorTest,FixMessageParserTest,FixMessageExplainerTest,FixMessageApplicationServiceTest,FixControllerTest,FixMessageRepositoryIntegrationTest" test
-```
-
-Run Phase 7 tests only:
-
-```bash
-mvn "-Dtest=InMemoryEventBusTest,EventControllerTest,RetryRegistryTest,DeadLetterQueueTest,IdempotencyRegistryTest,OrderProcessingEngineTest" test
-```
-
-Run Phase 8 tests only:
-
-```bash
-mvn "-Dtest=CorrelationIdFilterTest,MdcTaskDecoratorTest,OrderMetricsServiceTest,OrderQueueHealthIndicatorTest,DeadLetterQueueHealthIndicatorTest,MonitoringSummaryControllerTest" test
-```
-
-Run Phase 9 security tests only:
-
-```bash
-mvn "-Dtest=SecurityIntegrationTest,KeycloakRealmRoleConverterTest,AuthenticatedUserMdcFilterTest" test
-```
-
-Generate the JaCoCo report:
+Generate JaCoCo coverage report:
 
 ```bash
 mvn verify
+# Report: target/site/jacoco/index.html
 ```
 
-Note: Docker is required locally for Testcontainers-backed integration
-tests because they start a real PostgreSQL container.
+Note: Docker is required locally for Testcontainers-backed integration tests.
+
+## Monitoring (optional)
+
+Start Prometheus and Grafana:
+
+```bash
+docker compose -f docker-compose-monitoring.yml up -d
+```
+
+- Prometheus: `http://localhost:9090`
+- Grafana: `http://localhost:3000` → admin/admin
+
+The Actuator runs on port 8081 (no authentication — isolated from the API port).
+Prometheus scrapes `http://host.docker.internal:8081/actuator/prometheus`.
+
+Import `observability/grafana/marketflow-dashboard.json` to see:
+- Orders created and processing rate
+- Order queue size and DLQ size
+- Processing latency p95
+- HTTP request rate by status
+
+## Security model
+
+All API endpoints on port 8080 require a valid JWT bearer token issued by Keycloak.
+
+| Role | Access |
+|---|---|
+| `TRADER` | `/orders/**`, `/order-book/**`, `/fix/**`, `/external/**` |
+| `ADMIN` | All above + `/monitoring/**`, `/events/**`, `/execution/**` |
+| Public | `/learning/**`, `/swagger-ui.html`, `/v3/api-docs/**`, `/health/custom`, `/actuator/health` |
+
+Port 8081 (Actuator/metrics) is public — protect at network level in production.
+
+## Resilience patterns (Phase 10)
+
+| Pattern | Where | Config |
+|---|---|---|
+| Circuit Breaker | `OrderExecutionService` (broker calls) | 50% failure threshold, 5s open window |
+| Retry | `FixMessageApplicationService` | 3 attempts, exponential backoff 100ms→2s |
+| Rate Limiter | `OrderController` (POST /orders) | 5 requests/second |
+| Bulkhead | Order processing | 4 concurrent calls max |
 
 ## Endpoints
 
-| Method | Path | Purpose |
-| ------ | ---- | ------- |
-| POST | `/orders` | Create a new persisted order |
-| GET | `/orders/{id}` | Fetch one order by id |
-| GET | `/orders` | Filter and paginate orders |
-| GET | `/orders/{id}/history` | List order history |
-| POST | `/orders/{id}/book` | Add a persisted order to the in-memory order book |
-| GET | `/order-book` | Read BUY and SELL snapshots |
-| GET | `/order-book/best-buy` | Read highest-price BUY order |
-| GET | `/order-book/best-sell` | Read lowest-price SELL order |
-| GET | `/order-book/recent/{id}` | Read a recent order from the LRU cache |
-| POST | `/orders/{id}/queue` | Enqueue an order for asynchronous processing |
-| POST | `/execution/start` | Start execution workers |
-| POST | `/execution/stop` | Stop execution workers |
-| GET | `/execution/stats` | Read execution-engine statistics |
-| GET | `/execution/dlq` | List orders that exhausted retry |
-| POST | `/execution/dlq/{orderId}/reprocess` | Requeue a dead-letter order |
-| GET | `/events` | List internally published domain events |
-| GET | `/events/{type}` | Filter events by type |
-| POST | `/orders/{id}/fix-message` | Generate and persist a simulated FIX message |
-| GET | `/orders/{id}/fix-message` | Read the generated FIX message |
-| GET | `/orders/{id}/fix-explanation` | Explain every persisted FIX tag |
-| POST | `/fix/explain` | Parse and explain a caller-provided FIX-like String |
-| GET | `/learning/fix` | Explain the simulation and real FIX differences |
-| GET | `/learning/event-driven` | Explain internal event delivery |
-| GET | `/learning/idempotency` | Explain durable idempotency |
-| GET | `/learning/dlq` | Explain retry and DLQ trade-offs |
-| GET | `/swagger-ui.html` | Swagger UI |
-| GET | `/v3/api-docs` | OpenAPI JSON |
-| GET | `/health/custom` | Application-owned health summary |
-| GET | `/actuator/health` | Spring Boot Actuator health |
-| GET | `/actuator/info` | Application info |
-| GET | `/actuator/metrics` | Available metrics |
-| GET | `/actuator/prometheus` | Prometheus metrics |
-| GET | `/monitoring/summary` | Operational processing summary |
-| GET | `/learning/logging` | Explain structured logs, correlation and MDC |
-| GET | `/learning/monitoring` | Explain metrics and health signals |
-| GET | `/learning/performance/jvm` | Read a JVM runtime snapshot |
-| GET | `/learning/security` | Explain authentication and authorization |
-| GET | `/learning/jwt` | Explain JWT validation and claims |
-| GET | `/learning/keycloak` | Explain the Keycloak integration |
-| GET | `/learning/spring/beans` | Notes on Spring DI and bean inspection |
-| GET | `/learning/rest` | Notes on REST design |
-| GET | `/learning/validation` | Notes on Bean Validation |
-| GET | `/learning/exception-handling` | Notes on the error model |
-| GET | `/learning/jpa/lazy-vs-eager` | Notes on LAZY vs EAGER loading |
-| GET | `/learning/jpa/n-plus-one` | Notes on N+1 and mitigation |
-| GET | `/learning/transactions` | Notes on transactional boundaries |
-| GET | `/learning/transactions/self-invocation` | Notes on proxy/self invocation |
-| GET | `/learning/hibernate/dirty-checking` | Notes on dirty checking |
-| GET | `/learning/data-structures` | Overview of the Phase 4 structure choices |
-| GET | `/learning/data-structures/order-book` | Notes on `PriorityQueue` in the order book |
-| GET | `/learning/data-structures/cache` | Notes on the recent-order cache |
-| GET | `/learning/data-structures/concurrent-map` | Notes on `ConcurrentHashMap` lookup |
-| GET | `/learning/concurrency/race-condition` | Unsafe vs safe shared-counter updates |
-| GET | `/learning/concurrency/deadlock` | Deadlock and starvation explanation |
-| GET | `/learning/concurrency/completable-future` | `CompletableFuture` with named executor and MDC |
-| GET | `/learning/concurrency/thread-pool` | Worker-pool sizing and queue discussion |
+| Method | Path | Role | Purpose |
+|---|---|---|---|
+| POST | `/orders` | TRADER | Create a new persisted order |
+| GET | `/orders/{id}` | TRADER | Fetch one order by id |
+| GET | `/orders` | TRADER | Filter and paginate orders |
+| GET | `/orders/{id}/history` | TRADER | List order history |
+| POST | `/orders/{id}/book` | TRADER | Add order to in-memory order book |
+| GET | `/order-book` | TRADER | Read BUY and SELL snapshots |
+| GET | `/order-book/best-buy` | TRADER | Read highest-price BUY order |
+| GET | `/order-book/best-sell` | TRADER | Read lowest-price SELL order |
+| GET | `/order-book/recent/{id}` | TRADER | Read from LRU cache |
+| POST | `/orders/{id}/queue` | TRADER | Enqueue order for async processing |
+| POST | `/orders/{id}/execute-with-broker` | TRADER | Execute via circuit-breaker broker |
+| GET | `/external/market-data/{symbol}` | TRADER | Simulated market data with fallback |
+| POST | `/execution/start` | ADMIN | Start execution workers |
+| POST | `/execution/stop` | ADMIN | Stop execution workers |
+| GET | `/execution/stats` | ADMIN | Execution engine statistics |
+| GET | `/execution/dlq` | ADMIN | List dead-letter orders |
+| POST | `/execution/dlq/{orderId}/reprocess` | ADMIN | Requeue dead-letter order |
+| GET | `/events` | ADMIN | List domain events |
+| GET | `/events/{type}` | ADMIN | Filter events by type |
+| POST | `/orders/{id}/fix-message` | TRADER | Generate simulated FIX message |
+| GET | `/orders/{id}/fix-message` | TRADER | Read persisted FIX message |
+| GET | `/orders/{id}/fix-explanation` | TRADER | Explain FIX tags |
+| POST | `/fix/explain` | TRADER | Parse and explain a raw FIX string |
+| GET | `/monitoring/summary` | ADMIN | Operational processing summary |
+| GET | `/swagger-ui.html` | Public | Swagger UI |
+| GET | `/v3/api-docs` | Public | OpenAPI JSON |
+| GET | `/actuator/health` | Public | Spring Boot health |
+| GET | `/actuator/prometheus` | Port 8081 | Prometheus metrics |
 
 ## curl examples
 
-Obtain a token from the configured Keycloak realm:
-
 ```bash
-export TOKEN=$(
-  curl -s -X POST \
-    http://localhost:8180/realms/marketflow/protocol/openid-connect/token \
-    -H "Content-Type: application/x-www-form-urlencoded" \
-    -d client_id=marketflow-cli \
-    -d username="$KEYCLOAK_USERNAME" \
-    -d password="$KEYCLOAK_PASSWORD" \
-    -d grant_type=password |
-  jq -r .access_token
-)
-```
-
-Create an order that should execute successfully:
-
-```bash
+# Create an order
 curl -i -X POST http://localhost:8080/orders \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -H "X-Correlation-Id: demo-success-1" \
   -d '{
     "clientId": "C001",
     "symbol": "AAPL",
     "side": "BUY",
     "quantity": 100,
     "price": 150.25,
-    "idempotencyKey": "REQ-SUCCESS-001"
+    "idempotencyKey": "REQ-001"
   }'
-```
 
-Create an order that should fail during processing:
-
-```bash
-curl -i -X POST http://localhost:8080/orders \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Correlation-Id: demo-fail-1" \
-  -d '{
-    "clientId": "C002",
-    "symbol": "FAIL",
-    "side": "SELL",
-    "quantity": 50,
-    "price": 90.10,
-    "idempotencyKey": "REQ-FAIL-001"
-  }'
-```
-
-Start workers:
-
-```bash
+# Start workers
 curl -i -X POST http://localhost:8080/execution/start \
   -H "Authorization: Bearer $TOKEN"
-```
 
-Queue an order for async processing:
-
-```bash
+# Queue an order for async processing
 curl -i -X POST http://localhost:8080/orders/{id}/queue \
   -H "Authorization: Bearer $TOKEN"
-```
 
-Read execution stats:
-
-```bash
+# Read execution stats
 curl -s http://localhost:8080/execution/stats \
   -H "Authorization: Bearer $TOKEN" | jq
-```
 
-Inspect events and the DLQ:
-
-```bash
-curl -s http://localhost:8080/events -H "Authorization: Bearer $TOKEN" | jq
-curl -s http://localhost:8080/events/ORDER_RETRIED -H "Authorization: Bearer $TOKEN" | jq
-curl -s http://localhost:8080/execution/dlq -H "Authorization: Bearer $TOKEN" | jq
-```
-
-Reprocess an order from the DLQ:
-
-```bash
-curl -i -X POST http://localhost:8080/execution/dlq/{orderId}/reprocess \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-Stop workers:
-
-```bash
-curl -i -X POST http://localhost:8080/execution/stop \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-Generate a simulated FIX message:
-
-```bash
+# Generate FIX message
 curl -i -X POST http://localhost:8080/orders/{id}/fix-message \
   -H "Authorization: Bearer $TOKEN"
-```
 
-Read the persisted message:
-
-```bash
-curl -s http://localhost:8080/orders/{id}/fix-message \
-  -H "Authorization: Bearer $TOKEN" | jq
-```
-
-Explain the persisted message:
-
-```bash
-curl -s http://localhost:8080/orders/{id}/fix-explanation \
-  -H "Authorization: Bearer $TOKEN" | jq
-```
-
-Explain a raw simulated FIX message:
-
-```bash
-curl -s -X POST http://localhost:8080/fix/explain \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -d '{
-    "rawMessage": "8=FIX.4.4|35=D|49=MARKETFLOW|56=SIMULATED_BROKER|11=demo-1|55=AAPL|54=1|38=100|40=2|44=150.25|52=2026-01-15T10:30:00Z"
-  }' | jq
-```
-
-Read the order book snapshot:
-
-```bash
+# Read order book
 curl -s http://localhost:8080/order-book \
   -H "Authorization: Bearer $TOKEN" | jq
-```
 
-Read concurrency learning endpoints:
+# Read events
+curl -s http://localhost:8080/events \
+  -H "Authorization: Bearer $TOKEN" | jq
 
-```bash
-curl -s http://localhost:8080/learning/concurrency/race-condition | jq
-curl -s http://localhost:8080/learning/concurrency/completable-future | jq
-```
-
-Swagger UI:
-
-```bash
-curl -i http://localhost:8080/swagger-ui.html
-```
-
-OpenAPI JSON:
-
-```bash
-curl -s http://localhost:8080/v3/api-docs | jq
+# Inspect DLQ
+curl -s http://localhost:8080/execution/dlq \
+  -H "Authorization: Bearer $TOKEN" | jq
 ```
 
 ## Documentation
@@ -380,12 +307,10 @@ curl -s http://localhost:8080/v3/api-docs | jq
 - `docs/phase-07-event-driven-retry-dlq-idempotency.md`
 - `docs/phase-08-observability.md`
 - `docs/phase-09-security.md`
+- `docs/phase-10-resilience.md`
 - `CONTRIBUTING.md`
 
 ## Roadmap
 
-Future phases: resilience -> caching/scheduling ->
-Docker Compose -> Kubernetes -> performance/load tests -> CI/CD.
-
-See `docs/phase-09-security.md` for the in-depth
-narrative of this phase.
+Remaining phases: caching/scheduling → Docker Compose →
+Kubernetes → performance/load tests → CI/CD.

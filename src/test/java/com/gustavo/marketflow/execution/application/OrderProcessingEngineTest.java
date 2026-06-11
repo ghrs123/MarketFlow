@@ -14,6 +14,8 @@ import com.gustavo.marketflow.order.domain.OrderStatus;
 import com.gustavo.marketflow.shared.exception.OrderAlreadyQueuedException;
 import com.gustavo.marketflow.shared.exception.OrderQueueFullException;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.github.resilience4j.bulkhead.BulkheadConfig;
+import io.github.resilience4j.bulkhead.BulkheadRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -168,7 +170,8 @@ class OrderProcessingEngineTest {
                 executorService,
                 new OrderMetricsService(meterRegistry),
                 mock(AuditLogService.class),
-                meterRegistry
+                meterRegistry,
+                bulkheadRegistry(1)
         );
         when(orderExecutionService.markAccepted(orderId)).thenReturn(acceptedOrder);
         when(orderExecutionService.markFailed(orderId, "Simulated processing failure")).thenReturn(failedOrder);
@@ -272,8 +275,17 @@ class OrderProcessingEngineTest {
                 executorService,
                 new OrderMetricsService(meterRegistry),
                 mock(AuditLogService.class),
-                meterRegistry
+                meterRegistry,
+                bulkheadRegistry(workerCount)
         );
+    }
+
+    private BulkheadRegistry bulkheadRegistry(int maxConcurrentCalls) {
+        BulkheadConfig config = BulkheadConfig.custom()
+                .maxConcurrentCalls(maxConcurrentCalls)
+                .maxWaitDuration(java.time.Duration.ZERO)
+                .build();
+        return BulkheadRegistry.of(config);
     }
 
     private void awaitProcessed(OrderProcessingEngine engine, long expectedCount) throws InterruptedException {

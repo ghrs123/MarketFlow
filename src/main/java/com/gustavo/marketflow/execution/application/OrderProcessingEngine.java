@@ -21,6 +21,9 @@ import com.gustavo.marketflow.shared.exception.OrderQueueFullException;
 import com.gustavo.marketflow.shared.logging.MdcContext;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import io.github.resilience4j.bulkhead.Bulkhead;
+import io.github.resilience4j.bulkhead.BulkheadFullException;
+import io.github.resilience4j.bulkhead.BulkheadRegistry;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,6 +67,7 @@ public class OrderProcessingEngine {
     private final List<Future<?>> workerFutures;
     private final AtomicBoolean running;
     private final Timer processingTimer;
+    private final Bulkhead orderProcessingBulkhead;
 
     public OrderProcessingEngine(OrderExecutionService orderExecutionService,
                                  OrderQueue orderQueue,
@@ -74,7 +78,8 @@ public class OrderProcessingEngine {
                                  @Qualifier("executionWorkerExecutor") ExecutorService executionWorkerExecutor,
                                  OrderMetricsService orderMetricsService,
                                  AuditLogService auditLogService,
-                                 MeterRegistry meterRegistry) {
+                                 MeterRegistry meterRegistry,
+                                 BulkheadRegistry bulkheadRegistry) {
         this.orderExecutionService = orderExecutionService;
         this.orderQueue = orderQueue;
         this.executionProperties = executionProperties;
@@ -93,6 +98,7 @@ public class OrderProcessingEngine {
         this.workerFutures = new CopyOnWriteArrayList<>();
         this.running = new AtomicBoolean(false);
         this.processingTimer = meterRegistry.timer("marketflow.order.processing.duration");
+        this.orderProcessingBulkhead = bulkheadRegistry.bulkhead("orderProcessing");
         meterRegistry.gauge("marketflow.order.queue.size", orderQueue, OrderQueue::size);
         meterRegistry.gauge("marketflow.dead.letter.queue.size", deadLetterQueue, DeadLetterQueue::size);
         meterRegistry.gauge("marketflow.active.workers", this, OrderProcessingEngine::activeWorkerCount);
@@ -182,10 +188,15 @@ public class OrderProcessingEngine {
     void handleQueuedOrder(QueuedOrder queuedOrder) {
         Instant startedAt = Instant.now();
         try {
-            Order acceptedOrder = orderExecutionService.markAccepted(queuedOrder.orderId());
-            ExecutionResult executionResult = processWithRetry(acceptedOrder, queuedOrder);
-            log.info("Order {} processed result={} worker={}",
-                    executionResult.orderId(), executionResult.outcome(), executionResult.workerName());
+            Bulkhead.decorateRunnable(
+                    orderProcessingBulkhead,
+                    () -> processQueuedOrder(queuedOrder)
+            ).run();
+        } catch (BulkheadFullException ex) {
+            executionStatistics.recordProcessed(false);
+            orderMetricsService.recordFailed();
+            log.warn("Order {} rejected by processing bulkhead", queuedOrder.orderId());
+            orderExecutionService.markFailed(queuedOrder.orderId(), "Processing capacity exhausted");
         } catch (RuntimeException ex) {
             executionStatistics.recordProcessed(false);
             orderMetricsService.recordFailed();
@@ -199,6 +210,13 @@ public class OrderProcessingEngine {
             processingTimer.record(java.time.Duration.between(startedAt, Instant.now()));
             orderQueue.markProcessed(queuedOrder.orderId());
         }
+    }
+
+    private void processQueuedOrder(QueuedOrder queuedOrder) {
+        Order acceptedOrder = orderExecutionService.markAccepted(queuedOrder.orderId());
+        ExecutionResult executionResult = processWithRetry(acceptedOrder, queuedOrder);
+        log.info("Order {} processed result={} worker={}",
+                executionResult.orderId(), executionResult.outcome(), executionResult.workerName());
     }
 
     @PreDestroy

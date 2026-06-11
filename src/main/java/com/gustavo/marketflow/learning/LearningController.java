@@ -567,4 +567,60 @@ public class LearningController {
                 ));
                 return body;
         }
+
+        @GetMapping("/resilience")
+        public Map<String, Object> resilience() {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "Resilience4j fault-tolerance patterns");
+                body.put("patterns", List.of(
+                                "Circuit Breaker stops repeated calls to an unhealthy broker.",
+                                "Retry repeats only transient FIX generation failures with exponential backoff.",
+                                "Rate Limiter bounds order creation requests per time window.",
+                                "Bulkhead caps concurrent order-processing work."
+                ));
+                body.put("metrics", "Resilience4j events are exported through Actuator and Prometheus.");
+                return body;
+        }
+
+        @GetMapping("/circuit-breaker")
+        public Map<String, Object> circuitBreaker() {
+                return resilienceTopic(
+                                "Circuit Breaker",
+                                "Protects the simulated broker and market-data dependencies.",
+                                "CLOSED permits calls, OPEN fails fast, HALF_OPEN probes recovery.",
+                                "A fallback gives callers an explicit degraded result."
+                );
+        }
+
+        @GetMapping("/rate-limit")
+        public Map<String, Object> rateLimit() {
+                return resilienceTopic(
+                                "Rate Limiter",
+                                "Protects POST /orders from request bursts.",
+                                "The configured budget refreshes every second.",
+                                "Rejected calls return RFC 7807 with HTTP 429."
+                );
+        }
+
+        @GetMapping("/bulkhead")
+        public Map<String, Object> bulkhead() {
+                return resilienceTopic(
+                                "Bulkhead",
+                                "Limits concurrent work inside the order-processing engine.",
+                                "Capacity exhaustion rejects work immediately instead of growing contention.",
+                                "The bounded internal queue remains the upstream backpressure mechanism."
+                );
+        }
+
+        private Map<String, Object> resilienceTopic(String topic,
+                                                    String purpose,
+                                                    String behaviour,
+                                                    String tradeOff) {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", topic);
+                body.put("purpose", purpose);
+                body.put("behaviour", behaviour);
+                body.put("tradeOff", tradeOff);
+                return body;
+        }
 }

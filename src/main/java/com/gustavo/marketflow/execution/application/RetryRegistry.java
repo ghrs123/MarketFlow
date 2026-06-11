@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Thread-safe attempt registry for in-flight order processing.
  */
-@Component
+@Component("orderProcessingRetryRegistry")
 public class RetryRegistry {
 
     private final ConcurrentHashMap<UUID, AtomicInteger> attemptsByOrder;

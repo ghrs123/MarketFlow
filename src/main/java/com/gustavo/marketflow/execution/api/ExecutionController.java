@@ -2,7 +2,9 @@ package com.gustavo.marketflow.execution.api;
 
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import com.gustavo.marketflow.execution.application.OrderProcessingEngine;
+import com.gustavo.marketflow.execution.application.OrderExecutionService;
 import com.gustavo.marketflow.execution.domain.DeadLetterMessage;
+import com.gustavo.marketflow.resilience.application.BrokerExecutionResult;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,9 +29,12 @@ import java.util.List;
 public class ExecutionController {
 
     private final OrderProcessingEngine orderProcessingEngine;
+    private final OrderExecutionService orderExecutionService;
 
-    public ExecutionController(OrderProcessingEngine orderProcessingEngine) {
+    public ExecutionController(OrderProcessingEngine orderProcessingEngine,
+                               OrderExecutionService orderExecutionService) {
         this.orderProcessingEngine = orderProcessingEngine;
+        this.orderExecutionService = orderExecutionService;
     }
 
     @PostMapping("/orders/{id}/queue")
@@ -37,6 +42,12 @@ public class ExecutionController {
     public ResponseEntity<Void> queueOrder(@PathVariable UUID id) {
         orderProcessingEngine.enqueue(id);
         return ResponseEntity.accepted().build();
+    }
+
+    @PostMapping("/orders/{id}/execute-with-broker")
+    @PreAuthorize("hasAnyRole('TRADER', 'ADMIN')")
+    public BrokerExecutionResult executeWithBroker(@PathVariable UUID id) {
+        return orderExecutionService.executeWithBroker(id);
     }
 
     @PostMapping("/execution/start")

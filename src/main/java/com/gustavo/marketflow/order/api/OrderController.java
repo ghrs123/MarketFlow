@@ -4,6 +4,9 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import com.gustavo.marketflow.order.application.OrderApplicationService;
 import com.gustavo.marketflow.order.domain.Order;
 import com.gustavo.marketflow.order.domain.OrderStatus;
+import com.gustavo.marketflow.shared.exception.OrderRateLimitExceededException;
+import io.github.resilience4j.ratelimiter.RequestNotPermitted;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -56,6 +59,7 @@ public class OrderController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @RateLimiter(name = "orderCreation", fallbackMethod = "createRateLimitFallback")
     public ResponseEntity<OrderResponse> create(@Valid @RequestBody CreateOrderRequest request) {
         Order created = orderApplicationService.createOrder(
                 request.clientId(),
@@ -73,6 +77,11 @@ public class OrderController {
                 .toUri();
 
         return ResponseEntity.created(location).body(OrderResponse.from(created));
+    }
+
+    ResponseEntity<OrderResponse> createRateLimitFallback(CreateOrderRequest request,
+                                                          RequestNotPermitted cause) {
+        throw new OrderRateLimitExceededException();
     }
 
     @GetMapping("/{id}")

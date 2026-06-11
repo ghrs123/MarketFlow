@@ -1,21 +1,17 @@
 package com.gustavo.marketflow.security;
 
+import org.springframework.boot.actuate.autoconfigure.security.servlet.EndpointRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 
-/**
- * Configures MarketFlow as a stateless OAuth2 resource server backed by Keycloak JWTs.
- *
- * <p>CSRF is disabled because authentication is supplied exclusively through
- * bearer tokens rather than browser-managed cookies. Introducing cookie-based
- * authentication would require revisiting this decision.</p>
- */
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfiguration {
@@ -32,11 +28,31 @@ public class SecurityConfiguration {
         this.accessDeniedHandler = accessDeniedHandler;
     }
 
+    /**
+     * Management port (8081) — all actuator endpoints are public.
+     * Security is enforced at network level (firewall/Kubernetes NetworkPolicy).
+     * This chain has higher priority (@Order(1)) and matches only actuator endpoints.
+     */
     @Bean
+    @Order(1)
+    public SecurityFilterChain managementSecurityFilterChain(HttpSecurity http) throws Exception {
+        return http
+                .securityMatcher(request -> request.getLocalPort() == 8081)
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .csrf(AbstractHttpConfigurer::disable)
+                .build();
+    }
+
+    /**
+     * API port (8080) — all business endpoints require a valid JWT bearer token.
+     */
+    @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-                .csrf(csrf -> csrf.disable())
-                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(
                                 "/error",
@@ -51,13 +67,13 @@ public class SecurityConfiguration {
                         .requestMatchers(
                                 "/monitoring/**",
                                 "/events/**",
-                                "/execution/**",
-                                "/actuator/**"
+                                "/execution/**"
                         ).hasRole("ADMIN")
                         .requestMatchers(
                                 "/orders/**",
                                 "/order-book/**",
-                                "/fix/**"
+                                "/fix/**",
+                                "/external/**"
                         ).hasAnyRole("TRADER", "ADMIN")
                         .anyRequest().authenticated()
                 )
@@ -70,7 +86,9 @@ public class SecurityConfiguration {
                         .accessDeniedHandler(accessDeniedHandler)
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                 )
-                .addFilterAfter(new AuthenticatedUserMdcFilter(), BearerTokenAuthenticationFilter.class)
+                .addFilterAfter(
+                        new AuthenticatedUserMdcFilter(),
+                        BearerTokenAuthenticationFilter.class)
                 .build();
     }
 

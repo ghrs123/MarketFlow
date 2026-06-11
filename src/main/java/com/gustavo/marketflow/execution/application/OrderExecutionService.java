@@ -5,8 +5,16 @@ import com.gustavo.marketflow.order.domain.OrderHistory;
 import com.gustavo.marketflow.order.domain.OrderHistoryRepository;
 import com.gustavo.marketflow.order.domain.OrderRepository;
 import com.gustavo.marketflow.order.domain.OrderStatus;
+import com.gustavo.marketflow.resilience.application.BrokerExecutionResult;
+import com.gustavo.marketflow.resilience.infrastructure.BrokerClient;
+import com.gustavo.marketflow.resilience.infrastructure.NotificationClient;
+import com.gustavo.marketflow.resilience.infrastructure.TransientExternalServiceException;
 import com.gustavo.marketflow.shared.exception.OrderNotFoundException;
 import com.gustavo.marketflow.shared.exception.OrderNotQueueableException;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,13 +31,21 @@ import java.util.UUID;
 @Service
 public class OrderExecutionService {
 
+    private static final Logger log = LoggerFactory.getLogger(OrderExecutionService.class);
+
     private final OrderRepository orderRepository;
     private final OrderHistoryRepository orderHistoryRepository;
+    private final BrokerClient brokerClient;
+    private final NotificationClient notificationClient;
 
     public OrderExecutionService(OrderRepository orderRepository,
-                                 OrderHistoryRepository orderHistoryRepository) {
+                                 OrderHistoryRepository orderHistoryRepository,
+                                 BrokerClient brokerClient,
+                                 NotificationClient notificationClient) {
         this.orderRepository = orderRepository;
         this.orderHistoryRepository = orderHistoryRepository;
+        this.brokerClient = brokerClient;
+        this.notificationClient = notificationClient;
     }
 
     @Transactional(readOnly = true)
@@ -95,9 +111,52 @@ public class OrderExecutionService {
         saveHistory(order, "ORDER_RETRIED", order.getStatus(), order.getStatus(), payload);
     }
 
+    /**
+     * Calls the simulated broker behind a circuit breaker without changing local order state.
+     *
+     * <p>Keeping the remote call outside a database transaction prevents a slow dependency
+     * from holding a JDBC connection and database locks.</p>
+     */
+    @CircuitBreaker(name = "broker", fallbackMethod = "brokerFallback")
+    public BrokerExecutionResult executeWithBroker(UUID orderId) {
+        Order order = requireExisting(orderId);
+        String brokerReference = brokerClient.execute(order);
+        notificationClient.notifyBrokerAccepted(orderId, brokerReference);
+        log.info("Order {} accepted by simulated broker reference={}", orderId, brokerReference);
+        return new BrokerExecutionResult(
+                orderId,
+                "BROKER_ACCEPTED",
+                brokerReference,
+                false,
+                Instant.now()
+        );
+    }
+
     private Order requireExisting(UUID orderId) {
         return orderRepository.findById(orderId)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
+    }
+
+    private BrokerExecutionResult brokerFallback(UUID orderId,
+                                                 TransientExternalServiceException cause) {
+        return degradedBrokerResult(orderId, cause);
+    }
+
+    private BrokerExecutionResult brokerFallback(UUID orderId,
+                                                 CallNotPermittedException cause) {
+        return degradedBrokerResult(orderId, cause);
+    }
+
+    private BrokerExecutionResult degradedBrokerResult(UUID orderId, RuntimeException cause) {
+        log.warn("Broker fallback used for order {} cause={}",
+                orderId, cause.getClass().getSimpleName());
+        return new BrokerExecutionResult(
+                orderId,
+                "PENDING_BROKER_RECOVERY",
+                null,
+                true,
+                Instant.now()
+        );
     }
 
     private void saveHistory(Order order,

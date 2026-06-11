@@ -21,6 +21,8 @@ import com.gustavo.marketflow.fix.domain.FixTagExplanation;
 import com.gustavo.marketflow.order.OrderTestData;
 import com.gustavo.marketflow.order.domain.Order;
 import com.gustavo.marketflow.order.domain.OrderRepository;
+import com.gustavo.marketflow.resilience.application.ResilienceProperties;
+import com.gustavo.marketflow.resilience.infrastructure.FixGenerationAvailability;
 import com.gustavo.marketflow.shared.exception.FixMessageAlreadyExistsException;
 import com.gustavo.marketflow.shared.exception.FixMessageNotFoundException;
 import com.gustavo.marketflow.shared.exception.InvalidFixMessageException;
@@ -56,6 +58,7 @@ class FixMessageApplicationServiceTest {
                 new FixMessageGenerator(clock),
                 new FixMessageExplainer(parser),
                 new InMemoryEventBus(),
+                new FixGenerationAvailability(new ResilienceProperties(100, 2)),
                 clock,
                 new SimpleMeterRegistry()
         );

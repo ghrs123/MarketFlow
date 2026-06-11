@@ -22,9 +22,13 @@ import com.gustavo.marketflow.fix.domain.FixMessageRepository;
 import com.gustavo.marketflow.fix.domain.FixTagExplanation;
 import com.gustavo.marketflow.order.domain.Order;
 import com.gustavo.marketflow.order.domain.OrderRepository;
+import com.gustavo.marketflow.resilience.infrastructure.FixGenerationAvailability;
+import com.gustavo.marketflow.resilience.infrastructure.TransientExternalServiceException;
+import com.gustavo.marketflow.shared.exception.ExternalServiceUnavailableException;
 import com.gustavo.marketflow.shared.exception.FixMessageAlreadyExistsException;
 import com.gustavo.marketflow.shared.exception.FixMessageNotFoundException;
 import com.gustavo.marketflow.shared.exception.OrderNotFoundException;
+import io.github.resilience4j.retry.annotation.Retry;
 
 /**
  * Orchestrates generation, persistence, retrieval and explanation of simulated FIX messages.
@@ -39,6 +43,7 @@ public class FixMessageApplicationService {
     private final FixMessageGenerator fixMessageGenerator;
     private final FixMessageExplainer fixMessageExplainer;
     private final InMemoryEventBus eventBus;
+    private final FixGenerationAvailability fixGenerationAvailability;
     private final Clock clock;
     private final Counter generationSuccessCounter;
     private final Counter generationFailureCounter;
@@ -51,6 +56,7 @@ public class FixMessageApplicationService {
                                         FixMessageGenerator fixMessageGenerator,
                                         FixMessageExplainer fixMessageExplainer,
                                         InMemoryEventBus eventBus,
+                                        FixGenerationAvailability fixGenerationAvailability,
                                         Clock clock,
                                         MeterRegistry meterRegistry) {
         this.orderRepository = orderRepository;
@@ -58,6 +64,7 @@ public class FixMessageApplicationService {
         this.fixMessageGenerator = fixMessageGenerator;
         this.fixMessageExplainer = fixMessageExplainer;
         this.eventBus = eventBus;
+        this.fixGenerationAvailability = fixGenerationAvailability;
         this.clock = clock;
         this.generationSuccessCounter = meterRegistry.counter("marketflow.fix.messages.generated");
         this.generationFailureCounter = meterRegistry.counter("marketflow.fix.messages.failed");
@@ -67,6 +74,7 @@ public class FixMessageApplicationService {
     }
 
     @Transactional
+    @Retry(name = "fixMessage", fallbackMethod = "generationFallback")
     public FixMessage generateForOrder(UUID orderId) {
         return generationTimer.record(() -> generateAndPersist(orderId));
     }
@@ -94,6 +102,7 @@ public class FixMessageApplicationService {
             if (fixMessageRepository.existsByOrderId(orderId)) {
                 throw new FixMessageAlreadyExistsException(orderId);
             }
+            fixGenerationAvailability.assertAvailable(order);
 
             Instant now = clock.instant();
             FixMessage saved = fixMessageRepository.save(new FixMessage(
@@ -138,5 +147,11 @@ public class FixMessageApplicationService {
             return;
         }
         MDC.setContextMap(contextMap);
+    }
+
+    private FixMessage generationFallback(UUID orderId, TransientExternalServiceException cause) {
+        log.warn("FIX generation retry exhausted for order {} cause={}",
+                orderId, cause.getClass().getSimpleName());
+        throw new ExternalServiceUnavailableException("FIX message service");
     }
 }
