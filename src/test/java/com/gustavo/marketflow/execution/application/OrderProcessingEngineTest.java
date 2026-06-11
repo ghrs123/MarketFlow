@@ -1,5 +1,7 @@
 package com.gustavo.marketflow.execution.application;
 
+import com.gustavo.marketflow.event.domain.OrderMovedToDeadLetterEvent;
+import com.gustavo.marketflow.event.infrastructure.InMemoryEventBus;
 import com.gustavo.marketflow.execution.domain.OrderEnqueueStatus;
 import com.gustavo.marketflow.execution.domain.OrderQueue;
 import com.gustavo.marketflow.execution.domain.QueuedOrder;
@@ -21,9 +23,6 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -32,6 +31,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -146,6 +146,40 @@ class OrderProcessingEngineTest {
     }
 
     @Test
+    void handleQueuedOrder_failureExhaustsRetries_movesOrderToDeadLetterQueue() {
+        UUID orderId = UUID.randomUUID();
+        Order acceptedOrder = order(orderId, "FAIL", OrderStatus.ACCEPTED);
+        Order failedOrder = order(orderId, "FAIL", OrderStatus.FAILED);
+        RetryRegistry retryRegistry = new RetryRegistry();
+        DeadLetterQueue deadLetterQueue = new DeadLetterQueue();
+        InMemoryEventBus eventBus = new InMemoryEventBus();
+        executorService = Executors.newSingleThreadExecutor();
+        OrderProcessingEngine engine = new OrderProcessingEngine(
+                orderExecutionService,
+                orderQueue,
+                new ExecutionProperties(1, 10, 0, 3, 0, 0),
+                retryRegistry,
+                deadLetterQueue,
+                eventBus,
+                executorService,
+                new SimpleMeterRegistry()
+        );
+        when(orderExecutionService.markAccepted(orderId)).thenReturn(acceptedOrder);
+        when(orderExecutionService.markFailed(orderId, "Simulated processing failure")).thenReturn(failedOrder);
+
+        engine.handleQueuedOrder(new QueuedOrder(orderId, Map.of("correlationId", "test"), Instant.now()));
+
+        assertThat(deadLetterQueue.findByOrderId(orderId)).isPresent();
+        assertThat(deadLetterQueue.findByOrderId(orderId).orElseThrow().attempts()).isEqualTo(3);
+        assertThat(eventBus.findAll()).filteredOn(OrderMovedToDeadLetterEvent.class::isInstance).hasSize(1);
+        verify(orderExecutionService, times(2)).recordRetry(
+                org.mockito.ArgumentMatchers.eq(orderId),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyLong()
+        );
+    }
+
+    @Test
     void startThenStop_updatesRunningState() {
         OrderQueue realOrderQueue = new OrderQueue(10);
         OrderProcessingEngine engine = newEngine(realOrderQueue, 1);
@@ -224,7 +258,10 @@ class OrderProcessingEngineTest {
         return new OrderProcessingEngine(
                 orderExecutionService,
                 queue,
-                new ExecutionProperties(workerCount, 10, 0),
+                new ExecutionProperties(workerCount, 10, 0, 3, 0, 0),
+                new RetryRegistry(),
+                new DeadLetterQueue(),
+                new InMemoryEventBus(),
                 executorService,
                 new SimpleMeterRegistry()
         );

@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -84,7 +85,27 @@ class OrderRepositoryIntegrationTest {
         assertThat(found.getSide()).isEqualTo(order.getSide());
         assertThat(found.getQuantity()).isEqualByComparingTo(order.getQuantity());
         assertThat(found.getPrice()).isEqualByComparingTo(order.getPrice());
+        assertThat(found.getIdempotencyKey()).isEqualTo(order.getIdempotencyKey());
         assertThat(found.getStatus()).isEqualTo(order.getStatus());
+    }
+
+    @Test
+    void findByIdempotencyKey_existingKey_returnsOrder() {
+        Order order = persistOrder(OrderTestData.valid());
+
+        assertThat(orderRepository.findByIdempotencyKey(order.getIdempotencyKey()))
+                .contains(order);
+    }
+
+    @Test
+    void save_duplicateIdempotencyKey_violatesUniqueConstraint() {
+        Instant now = Instant.parse("2026-01-15T10:30:00Z");
+        Order first = orderWithIdempotencyKey(UUID.randomUUID(), "REQ-UNIQUE", now);
+        Order duplicate = orderWithIdempotencyKey(UUID.randomUUID(), "REQ-UNIQUE", now.plusSeconds(1));
+        persistOrder(first);
+
+        assertThatThrownBy(() -> persistOrder(duplicate))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     @Test
@@ -250,6 +271,22 @@ class OrderRepositoryIntegrationTest {
                 base.getQuantity(),
                 base.getPrice(),
                 status,
+                timestamp,
+                timestamp
+        );
+    }
+
+    private Order orderWithIdempotencyKey(UUID id, String idempotencyKey, Instant timestamp) {
+        Order base = OrderTestData.valid();
+        return new Order(
+                id,
+                base.getClientId(),
+                base.getSymbol(),
+                base.getSide(),
+                base.getQuantity(),
+                base.getPrice(),
+                OrderStatus.NEW,
+                idempotencyKey,
                 timestamp,
                 timestamp
         );

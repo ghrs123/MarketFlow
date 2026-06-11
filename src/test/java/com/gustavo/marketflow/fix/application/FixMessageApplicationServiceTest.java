@@ -14,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import com.gustavo.marketflow.event.infrastructure.InMemoryEventBus;
 import com.gustavo.marketflow.fix.domain.FixMessage;
 import com.gustavo.marketflow.fix.domain.FixMessageRepository;
 import com.gustavo.marketflow.fix.domain.FixTagExplanation;
@@ -54,6 +55,7 @@ class FixMessageApplicationServiceTest {
                 fixMessageRepository,
                 new FixMessageGenerator(clock),
                 new FixMessageExplainer(parser),
+                new InMemoryEventBus(),
                 clock,
                 new SimpleMeterRegistry()
         );

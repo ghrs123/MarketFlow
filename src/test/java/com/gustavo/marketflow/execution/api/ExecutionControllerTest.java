@@ -2,6 +2,7 @@ package com.gustavo.marketflow.execution.api;
 
 import com.gustavo.marketflow.execution.application.ExecutionStats;
 import com.gustavo.marketflow.execution.application.OrderProcessingEngine;
+import com.gustavo.marketflow.execution.domain.DeadLetterMessage;
 import com.gustavo.marketflow.shared.exception.GlobalExceptionHandler;
 import com.gustavo.marketflow.shared.exception.OrderAlreadyQueuedException;
 import com.gustavo.marketflow.shared.exception.OrderNotFoundException;
@@ -17,6 +18,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.is;
@@ -134,5 +137,31 @@ class ExecutionControllerTest {
                 .andExpect(jsonPath("$.totalProcessed", is(8)))
                 .andExpect(jsonPath("$.totalSucceeded", is(6)))
                 .andExpect(jsonPath("$.totalFailed", is(2)));
+    }
+
+    @Test
+    void getExecutionDlq_withMessage_returnsDeadLetterEntries() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        when(orderProcessingEngine.getDeadLetters()).thenReturn(List.of(new DeadLetterMessage(
+                UUID.randomUUID(),
+                orderId,
+                "Simulated processing failure",
+                3,
+                Map.of("correlationId", "test"),
+                Instant.parse("2026-01-15T10:30:00Z")
+        )));
+
+        mockMvc.perform(get("/execution/dlq"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].orderId", is(orderId.toString())))
+                .andExpect(jsonPath("$[0].attempts", is(3)));
+    }
+
+    @Test
+    void postExecutionDlqReprocess_existingMessage_returns202() throws Exception {
+        UUID orderId = UUID.randomUUID();
+
+        mockMvc.perform(post("/execution/dlq/{orderId}/reprocess", orderId))
+                .andExpect(status().isAccepted());
     }
 }

@@ -1,5 +1,6 @@
 package com.gustavo.marketflow.order.application;
 
+import com.gustavo.marketflow.event.infrastructure.InMemoryEventBus;
 import com.gustavo.marketflow.order.OrderTestData;
 import com.gustavo.marketflow.order.domain.Order;
 import com.gustavo.marketflow.order.domain.OrderHistory;
@@ -9,10 +10,10 @@ import com.gustavo.marketflow.order.domain.OrderRepository;
 import com.gustavo.marketflow.order.domain.OrderSide;
 import com.gustavo.marketflow.order.domain.OrderStatus;
 import com.gustavo.marketflow.shared.exception.OrderNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -38,12 +39,22 @@ class OrderApplicationServiceTest {
     @Mock
     private OrderHistoryRepository orderHistoryRepository;
 
-    @InjectMocks
     private OrderApplicationService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new OrderApplicationService(
+                orderRepository,
+                orderHistoryRepository,
+                new IdempotencyRegistry(orderRepository),
+                new InMemoryEventBus()
+        );
+    }
 
     @Test
     void createOrder_happyPath_persistsOrderAndHistory() {
         Order persistedOrder = OrderTestData.valid();
+        when(orderRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
         when(orderRepository.save(any(Order.class))).thenReturn(persistedOrder);
         when(orderHistoryRepository.save(any(OrderHistory.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0, OrderHistory.class));
@@ -83,6 +94,7 @@ class OrderApplicationServiceTest {
     @Test
     void createOrder_rollbackWhenHistoryFails_orderDoesNotCompletePersistence() {
         Order persistedOrder = OrderTestData.valid();
+        when(orderRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
         when(orderRepository.save(any(Order.class))).thenReturn(persistedOrder);
         doThrow(new IllegalStateException("history persistence failed"))
                 .when(orderHistoryRepository)
@@ -99,6 +111,25 @@ class OrderApplicationServiceTest {
 
         verify(orderRepository).save(any(Order.class));
         verify(orderHistoryRepository).save(any(OrderHistory.class));
+    }
+
+    @Test
+    void createOrder_duplicateIdempotencyKey_returnsExistingOrderWithoutSaving() {
+        Order existingOrder = OrderTestData.valid();
+        when(orderRepository.findByIdempotencyKey("REQ-123")).thenReturn(Optional.of(existingOrder));
+
+        Order result = service.createOrder(
+                "C001",
+                "AAPL",
+                OrderSide.BUY,
+                new BigDecimal("10.00000000"),
+                new BigDecimal("150.25000000"),
+                "REQ-123"
+        );
+
+        assertThat(result).isSameAs(existingOrder);
+        org.mockito.Mockito.verify(orderRepository, org.mockito.Mockito.never()).save(any(Order.class));
+        org.mockito.Mockito.verify(orderHistoryRepository, org.mockito.Mockito.never()).save(any(OrderHistory.class));
     }
 
     @Test

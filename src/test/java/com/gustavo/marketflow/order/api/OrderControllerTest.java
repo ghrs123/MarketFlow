@@ -63,7 +63,7 @@ class OrderControllerTest {
     @Test
     void postOrders_returns201AndLocationHeader() throws Exception {
         Order createdOrder = OrderTestData.valid();
-        when(orderApplicationService.createOrder(any(), any(), any(), any(), any())).thenReturn(createdOrder);
+        when(orderApplicationService.createOrder(any(), any(), any(), any(), any(), any())).thenReturn(createdOrder);
 
         mockMvc.perform(post("/orders")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -84,7 +84,8 @@ class OrderControllerTest {
                                 "symbol", "AAPL",
                                 "side", "BUY",
                                 "quantity", "-1",
-                                "price", "0"
+                                "price", "0",
+                                "idempotencyKey", "REQ-INVALID"
                         ))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type", is("https://marketflow.local/errors/validation")))
@@ -113,7 +114,8 @@ class OrderControllerTest {
                                 "symbol", "AAPL",
                                 "side", "INVALID",
                                 "quantity", "10",
-                                "price", "150.25"
+                                "price", "150.25",
+                                "idempotencyKey", "REQ-INVALID-SIDE"
                         ))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type", is("https://marketflow.local/errors/malformed-request")))
@@ -208,7 +210,8 @@ class OrderControllerTest {
                 "symbol", "AAPL",
                 "side", "BUY",
                 "quantity", "10",
-                "price", "150.25"
+                "price", "150.25",
+                "idempotencyKey", "REQ-123"
         );
     }
 }
