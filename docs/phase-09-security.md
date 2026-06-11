@@ -79,6 +79,16 @@ export TOKEN=$(
 Password grant is enabled only for the CLI learning flow. Browser applications
 should use Authorization Code with PKCE.
 
+## Up Keycloak server
+```bash
+docker run -d \
+  --name keycloak \
+  -p 8180:8080 \
+  -e KEYCLOAK_ADMIN=admin \
+  -e KEYCLOAK_ADMIN_PASSWORD=admin \
+  quay.io/keycloak/keycloak:24.0.0 \
+  start-dev
+```
 ## Demonstrate
 
 ```bash
