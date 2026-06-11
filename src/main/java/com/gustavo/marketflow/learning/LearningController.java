@@ -508,4 +508,63 @@ public class LearningController {
                 ));
                 return body;
         }
+
+        @GetMapping("/security")
+        public Map<String, Object> security() {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "Spring Security resource server");
+                body.put("model", "Stateless bearer-token authentication");
+                body.put("roles", List.of(
+                                "ROLE_TRADER operates orders, order book and simulated FIX messages.",
+                                "ROLE_ADMIN accesses operational, event and administrative execution endpoints."
+                ));
+                body.put("publicEndpoints", List.of(
+                                "/learning/**",
+                                "/actuator/health",
+                                "/swagger-ui.html",
+                                "/v3/api-docs"
+                ));
+                body.put("principles", List.of(
+                                "Authentication proves the JWT subject; authorization evaluates authorities.",
+                                "URL rules and @PreAuthorize provide defense in depth.",
+                                "The API is stateless and does not create an HTTP session.",
+                                "Tokens are never written to application logs."
+                ));
+                return body;
+        }
+
+        @GetMapping("/jwt")
+        public Map<String, Object> jwt() {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "JSON Web Token validation");
+                body.put("validatedClaims", List.of(
+                                "iss identifies the trusted Keycloak realm.",
+                                "exp prevents use after token expiration.",
+                                "sub becomes the authenticated principal and MDC userId.",
+                                "realm_access.roles is converted to Spring ROLE_* authorities."
+                ));
+                body.put("safety", List.of(
+                                "A JWT is signed, not encrypted by default.",
+                                "Do not place secrets or sensitive personal data in token claims.",
+                                "Use short-lived access tokens and validate issuer and signature."
+                ));
+                return body;
+        }
+
+        @GetMapping("/keycloak")
+        public Map<String, Object> keycloak() {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "Keycloak identity provider integration");
+                body.put("configuration", List.of(
+                                "KEYCLOAK_ISSUER_URI selects the trusted realm issuer.",
+                                "KEYCLOAK_JWK_SET_URI supplies public signing keys without storing secrets.",
+                                "Realm roles TRADER and ADMIN are mapped from realm_access.roles."
+                ));
+                body.put("responsibilities", List.of(
+                                "Keycloak authenticates users and issues tokens.",
+                                "MarketFlow validates tokens and authorizes each protected operation.",
+                                "The resource server does not handle user passwords."
+                ));
+                return body;
+        }
 }

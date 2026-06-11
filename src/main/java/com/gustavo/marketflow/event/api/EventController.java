@@ -1,7 +1,9 @@
 package com.gustavo.marketflow.event.api;
 
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import com.gustavo.marketflow.event.domain.DomainEvent;
 import com.gustavo.marketflow.event.infrastructure.InMemoryEventBus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +16,8 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/events")
+@PreAuthorize("hasRole('ADMIN')")
+@SecurityRequirement(name = "bearerAuth")
 public class EventController {
 
     private final InMemoryEventBus eventBus;
