@@ -5,6 +5,8 @@ import com.gustavo.marketflow.event.infrastructure.InMemoryEventBus;
 import com.gustavo.marketflow.execution.domain.OrderEnqueueStatus;
 import com.gustavo.marketflow.execution.domain.OrderQueue;
 import com.gustavo.marketflow.execution.domain.QueuedOrder;
+import com.gustavo.marketflow.monitoring.application.AuditLogService;
+import com.gustavo.marketflow.monitoring.application.OrderMetricsService;
 import com.gustavo.marketflow.order.OrderTestData;
 import com.gustavo.marketflow.order.domain.Order;
 import com.gustavo.marketflow.order.domain.OrderSide;
@@ -32,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -154,6 +157,7 @@ class OrderProcessingEngineTest {
         DeadLetterQueue deadLetterQueue = new DeadLetterQueue();
         InMemoryEventBus eventBus = new InMemoryEventBus();
         executorService = Executors.newSingleThreadExecutor();
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
         OrderProcessingEngine engine = new OrderProcessingEngine(
                 orderExecutionService,
                 orderQueue,
@@ -162,7 +166,9 @@ class OrderProcessingEngineTest {
                 deadLetterQueue,
                 eventBus,
                 executorService,
-                new SimpleMeterRegistry()
+                new OrderMetricsService(meterRegistry),
+                mock(AuditLogService.class),
+                meterRegistry
         );
         when(orderExecutionService.markAccepted(orderId)).thenReturn(acceptedOrder);
         when(orderExecutionService.markFailed(orderId, "Simulated processing failure")).thenReturn(failedOrder);
@@ -255,6 +261,7 @@ class OrderProcessingEngineTest {
             thread.setName("engine-test-" + thread.threadId());
             return thread;
         });
+        SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
         return new OrderProcessingEngine(
                 orderExecutionService,
                 queue,
@@ -263,7 +270,9 @@ class OrderProcessingEngineTest {
                 new DeadLetterQueue(),
                 new InMemoryEventBus(),
                 executorService,
-                new SimpleMeterRegistry()
+                new OrderMetricsService(meterRegistry),
+                mock(AuditLogService.class),
+                meterRegistry
         );
     }
 

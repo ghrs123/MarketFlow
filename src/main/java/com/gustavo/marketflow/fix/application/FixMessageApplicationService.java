@@ -59,11 +59,11 @@ public class FixMessageApplicationService {
         this.fixMessageExplainer = fixMessageExplainer;
         this.eventBus = eventBus;
         this.clock = clock;
-        this.generationSuccessCounter = meterRegistry.counter("marketflow.fix.message.generated.success");
-        this.generationFailureCounter = meterRegistry.counter("marketflow.fix.message.generated.failure");
-        this.explanationSuccessCounter = meterRegistry.counter("marketflow.fix.message.explained.success");
-        this.explanationFailureCounter = meterRegistry.counter("marketflow.fix.message.explained.failure");
-        this.generationTimer = meterRegistry.timer("marketflow.fix.message.generation.duration");
+        this.generationSuccessCounter = meterRegistry.counter("marketflow.fix.messages.generated");
+        this.generationFailureCounter = meterRegistry.counter("marketflow.fix.messages.failed");
+        this.explanationSuccessCounter = meterRegistry.counter("marketflow.fix.explanations.completed");
+        this.explanationFailureCounter = meterRegistry.counter("marketflow.fix.explanations.failed");
+        this.generationTimer = meterRegistry.timer("marketflow.fix.generation.duration");
     }
 
     @Transactional

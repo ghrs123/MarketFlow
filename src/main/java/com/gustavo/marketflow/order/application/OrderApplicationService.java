@@ -3,6 +3,8 @@ package com.gustavo.marketflow.order.application;
 import com.gustavo.marketflow.event.domain.OrderCreatedEvent;
 import com.gustavo.marketflow.event.domain.OrderValidatedEvent;
 import com.gustavo.marketflow.event.infrastructure.InMemoryEventBus;
+import com.gustavo.marketflow.monitoring.application.AuditLogService;
+import com.gustavo.marketflow.monitoring.application.OrderMetricsService;
 import com.gustavo.marketflow.order.domain.Order;
 import com.gustavo.marketflow.order.domain.OrderHistory;
 import com.gustavo.marketflow.order.domain.OrderHistoryRepository;
@@ -43,15 +45,21 @@ public class OrderApplicationService {
     private final OrderHistoryRepository orderHistoryRepository;
     private final IdempotencyRegistry idempotencyRegistry;
     private final InMemoryEventBus eventBus;
+    private final OrderMetricsService orderMetricsService;
+    private final AuditLogService auditLogService;
 
     public OrderApplicationService(OrderRepository orderRepository,
                                    OrderHistoryRepository orderHistoryRepository,
                                    IdempotencyRegistry idempotencyRegistry,
-                                   InMemoryEventBus eventBus) {
+                                   InMemoryEventBus eventBus,
+                                   OrderMetricsService orderMetricsService,
+                                   AuditLogService auditLogService) {
         this.orderRepository = orderRepository;
         this.orderHistoryRepository = orderHistoryRepository;
         this.idempotencyRegistry = idempotencyRegistry;
         this.eventBus = eventBus;
+        this.orderMetricsService = orderMetricsService;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional
@@ -73,14 +81,30 @@ public class OrderApplicationService {
                              BigDecimal quantity,
                              BigDecimal price,
                              String idempotencyKey) {
+        try {
+            return orderMetricsService.recordCreation(
+                    () -> createOrderOnce(clientId, symbol, side, quantity, price, idempotencyKey));
+        } catch (RuntimeException ex) {
+            orderMetricsService.recordRejected();
+            throw ex;
+        }
+    }
+
+    private Order createOrderOnce(String clientId,
+                                  String symbol,
+                                  OrderSide side,
+                                  BigDecimal quantity,
+                                  BigDecimal price,
+                                  String idempotencyKey) {
         Order existingOrder = idempotencyRegistry.findExisting(idempotencyKey).orElse(null);
         if (existingOrder != null) {
-            log.info("Duplicate order request resolved idempotently orderId={} idempotencyKey={}",
-                    existingOrder.getId(), idempotencyKey);
+            log.info("Duplicate order request resolved idempotently orderId={}", existingOrder.getId());
+            auditLogService.recordOrderEvent("IDEMPOTENT_REPLAY", existingOrder.getId(), "REUSED");
             return existingOrder;
         }
 
         Order order = Order.createNew(clientId, symbol, side, quantity, price, idempotencyKey);
+        orderMetricsService.recordValidated();
         eventBus.publish(OrderValidatedEvent.now(order.getId()));
         Order saved = orderRepository.save(order);
         orderHistoryRepository.save(new OrderHistory(
@@ -94,6 +118,8 @@ public class OrderApplicationService {
                 Instant.now()
         ));
         eventBus.publish(OrderCreatedEvent.now(saved.getId()));
+        orderMetricsService.recordCreated();
+        auditLogService.recordOrderEvent("ORDER_CREATED", saved.getId(), saved.getStatus().name());
         log.info("Order created id={} clientId={} symbol={} side={} qty={} price={}",
                 saved.getId(), saved.getClientId(), saved.getSymbol(),
                 saved.getSide(), saved.getQuantity(), saved.getPrice());

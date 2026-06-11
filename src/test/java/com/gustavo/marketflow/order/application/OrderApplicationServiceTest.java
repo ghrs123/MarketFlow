@@ -1,6 +1,8 @@
 package com.gustavo.marketflow.order.application;
 
 import com.gustavo.marketflow.event.infrastructure.InMemoryEventBus;
+import com.gustavo.marketflow.monitoring.application.AuditLogService;
+import com.gustavo.marketflow.monitoring.application.OrderMetricsService;
 import com.gustavo.marketflow.order.OrderTestData;
 import com.gustavo.marketflow.order.domain.Order;
 import com.gustavo.marketflow.order.domain.OrderHistory;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -27,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,7 +51,9 @@ class OrderApplicationServiceTest {
                 orderRepository,
                 orderHistoryRepository,
                 new IdempotencyRegistry(orderRepository),
-                new InMemoryEventBus()
+                new InMemoryEventBus(),
+                new OrderMetricsService(new SimpleMeterRegistry()),
+                mock(AuditLogService.class)
         );
     }
 
