@@ -17,6 +17,9 @@ import org.springframework.validation.annotation.Validated;
 public record ExecutionProperties(
         @Min(1) @Max(32) int workerCount,
         @Min(1) @Max(10_000) int queueCapacity,
-        @Min(0) @Max(60_000) int processingDelayMillis
+        @Min(0) @Max(60_000) int processingDelayMillis,
+        @Min(1) @Max(10) int retryMaxAttempts,
+        @Min(0) @Max(60_000) int retryInitialBackoffMillis,
+        @Min(0) @Max(300_000) int retryMaxBackoffMillis
 ) {
 }

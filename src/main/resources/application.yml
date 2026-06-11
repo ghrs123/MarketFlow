@@ -53,14 +53,17 @@ management:
 info:
   app:
     name: marketflow-lab
-    phase: 06-fix-message-engine
-    description: MarketFlow Senior Java Cloud Lab - Phase 6
+    phase: 07-event-driven-retry-dlq-idempotency
+    description: MarketFlow Senior Java Cloud Lab - Phase 7
 
 marketflow:
   execution:
     worker-count: 4
     queue-capacity: 100
     processing-delay-millis: 50
+    retry-max-attempts: 3
+    retry-initial-backoff-millis: 100
+    retry-max-backoff-millis: 2000
 
 logging:
   pattern:
