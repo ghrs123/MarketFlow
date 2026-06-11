@@ -405,4 +405,58 @@ public class LearningController {
                 ));
                 return body;
         }
+
+        @GetMapping("/event-driven")
+        public Map<String, Object> eventDriven() {
+                return learningTopic(
+                                "Internal event-driven architecture",
+                                "InMemoryEventBus + immutable domain events",
+                                "Publishing events decouples business facts from consumers while retaining a simple process-local runtime for this phase.",
+                                List.of(
+                                                "Events are lost on restart because there is no external broker or event store.",
+                                                "Subscriber delivery is synchronous and provides no cross-process durability.",
+                                                "At-least-once delivery in a real broker requires idempotent consumers."
+                                ),
+                                List.of(
+                                                "How do events reduce coupling?",
+                                                "What changes when moving from an internal bus to Kafka?",
+                                                "Why must event consumers be idempotent?"
+                                ));
+        }
+
+        @GetMapping("/idempotency")
+        public Map<String, Object> idempotency() {
+                return learningTopic(
+                                "Idempotent order creation",
+                                "PostgreSQL unique key + application lookup",
+                                "The client-provided idempotency key maps retries of the same request to one durable order.",
+                                List.of(
+                                                "The database constraint is the final authority under concurrent requests.",
+                                                "Keys need retention and ownership policies in a production API.",
+                                                "Reusing a key with different payload data is not rejected in this educational phase."
+                                ),
+                                List.of(
+                                                "Why is a pre-insert lookup insufficient under concurrency?",
+                                                "How does a unique constraint close the race?",
+                                                "What response should an idempotent replay return?"
+                                ));
+        }
+
+        @GetMapping("/dlq")
+        public Map<String, Object> deadLetterQueue() {
+                return learningTopic(
+                                "Retry and dead-letter queue",
+                                "Exponential backoff + in-memory DLQ",
+                                "Transient failures are retried with increasing delays and terminal failures are isolated for inspection and explicit reprocessing.",
+                                List.of(
+                                                "The DLQ is process-local and is lost on restart.",
+                                                "Reprocessing without fixing the cause can return the order to the DLQ.",
+                                                "Backoff occupies a worker thread in this phase; delayed scheduling scales better."
+                                ),
+                                List.of(
+                                                "Why use exponential backoff?",
+                                                "When should a message move to a DLQ?",
+                                                "How do you prevent a retry storm?"
+                                ));
+        }
 }

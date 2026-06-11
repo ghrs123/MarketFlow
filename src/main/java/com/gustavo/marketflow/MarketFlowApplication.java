@@ -4,7 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * MarketFlow Senior Java Cloud Lab - Phase 2 entry point.
+ * MarketFlow Senior Java Cloud Lab entry point.
  *
  * <p>This module starts the Spring Boot application context which wires
  * the order management vertical slice (controller -> service -> JPA

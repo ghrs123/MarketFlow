@@ -15,6 +15,8 @@ import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.gustavo.marketflow.event.domain.FixMessageGeneratedEvent;
+import com.gustavo.marketflow.event.infrastructure.InMemoryEventBus;
 import com.gustavo.marketflow.fix.domain.FixMessage;
 import com.gustavo.marketflow.fix.domain.FixMessageRepository;
 import com.gustavo.marketflow.fix.domain.FixTagExplanation;
@@ -36,6 +38,7 @@ public class FixMessageApplicationService {
     private final FixMessageRepository fixMessageRepository;
     private final FixMessageGenerator fixMessageGenerator;
     private final FixMessageExplainer fixMessageExplainer;
+    private final InMemoryEventBus eventBus;
     private final Clock clock;
     private final Counter generationSuccessCounter;
     private final Counter generationFailureCounter;
@@ -47,12 +50,14 @@ public class FixMessageApplicationService {
                                         FixMessageRepository fixMessageRepository,
                                         FixMessageGenerator fixMessageGenerator,
                                         FixMessageExplainer fixMessageExplainer,
+                                        InMemoryEventBus eventBus,
                                         Clock clock,
                                         MeterRegistry meterRegistry) {
         this.orderRepository = orderRepository;
         this.fixMessageRepository = fixMessageRepository;
         this.fixMessageGenerator = fixMessageGenerator;
         this.fixMessageExplainer = fixMessageExplainer;
+        this.eventBus = eventBus;
         this.clock = clock;
         this.generationSuccessCounter = meterRegistry.counter("marketflow.fix.message.generated.success");
         this.generationFailureCounter = meterRegistry.counter("marketflow.fix.message.generated.failure");
@@ -99,6 +104,7 @@ public class FixMessageApplicationService {
                     now
             ));
             generationSuccessCounter.increment();
+            eventBus.publish(FixMessageGeneratedEvent.now(orderId));
             MDC.put("orderId", orderId.toString());
             log.info("Simulated FIX message generated for order {}", orderId);
             return saved;
