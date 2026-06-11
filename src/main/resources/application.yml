@@ -40,11 +40,26 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   endpoint:
     health:
       show-details: always
       probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,database,orderQueue,deadLetterQueue,processingEngine
+        liveness:
+          include: livenessState
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        "[marketflow]": true
+  prometheus:
+    metrics:
+      export:
         enabled: true
   info:
     env:
@@ -53,8 +68,8 @@ management:
 info:
   app:
     name: marketflow-lab
-    phase: 07-event-driven-retry-dlq-idempotency
-    description: MarketFlow Senior Java Cloud Lab - Phase 7
+    phase: 08-observability
+    description: MarketFlow Senior Java Cloud Lab - Observability
 
 marketflow:
   execution:
@@ -66,8 +81,7 @@ marketflow:
     retry-max-backoff-millis: 2000
 
 logging:
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] [%X{correlationId:-N/A}] %logger{36} - %msg%n"
+  config: classpath:logback-spring.xml
   level:
     "[com.gustavo.marketflow]": DEBUG
     "[org.springframework.web]": INFO
