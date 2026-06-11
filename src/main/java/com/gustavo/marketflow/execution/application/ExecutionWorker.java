@@ -2,12 +2,11 @@ package com.gustavo.marketflow.execution.application;
 
 import com.gustavo.marketflow.execution.domain.OrderQueue;
 import com.gustavo.marketflow.execution.domain.QueuedOrder;
+import com.gustavo.marketflow.shared.logging.MdcContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 
 import java.time.Duration;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -42,7 +41,10 @@ public class ExecutionWorker implements Runnable {
                 if (queuedOrder.isEmpty()) {
                     continue;
                 }
-                withMdc(queuedOrder.get().mdcContext(), () -> orderProcessingEngine.handleQueuedOrder(queuedOrder.get()));
+                MdcContext.runWith(
+                        queuedOrder.get().mdcContext(),
+                        () -> orderProcessingEngine.handleQueuedOrder(queuedOrder.get())
+                );
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 log.debug("Execution worker interrupted during shutdown");
@@ -52,21 +54,4 @@ public class ExecutionWorker implements Runnable {
         }
     }
 
-    private void withMdc(Map<String, String> contextMap, Runnable action) {
-        Map<String, String> previousContext = MDC.getCopyOfContextMap();
-        try {
-            if (contextMap == null || contextMap.isEmpty()) {
-                MDC.clear();
-            } else {
-                MDC.setContextMap(contextMap);
-            }
-            action.run();
-        } finally {
-            if (previousContext == null || previousContext.isEmpty()) {
-                MDC.clear();
-            } else {
-                MDC.setContextMap(previousContext);
-            }
-        }
-    }
 }
