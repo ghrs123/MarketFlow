@@ -25,6 +25,7 @@ public record OrderResponse(
         OrderSide side,
         BigDecimal quantity,
         BigDecimal price,
+        String idempotencyKey,
         OrderStatus status,
         Instant createdAt,
         Instant updatedAt
@@ -38,6 +39,7 @@ public record OrderResponse(
                 order.getSide(),
                 order.getQuantity(),
                 order.getPrice(),
+                order.getIdempotencyKey(),
                 order.getStatus(),
                 order.getCreatedAt(),
                 order.getUpdatedAt()

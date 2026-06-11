@@ -58,7 +58,8 @@ public class OrderController {
                 request.symbol(),
                 request.side(),
                 request.quantity(),
-                request.price()
+                request.price(),
+                request.idempotencyKey()
         );
 
         URI location = ServletUriComponentsBuilder

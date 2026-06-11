@@ -31,6 +31,7 @@ public final class Order {
     private final OrderSide side;
     private final BigDecimal quantity;
     private final BigDecimal price;
+    private final String idempotencyKey;
     private final Instant createdAt;
 
     private OrderStatus status;
@@ -45,6 +46,19 @@ public final class Order {
                  OrderStatus status,
                  Instant createdAt,
                  Instant updatedAt) {
+        this(id, clientId, symbol, side, quantity, price, status, id.toString(), createdAt, updatedAt);
+    }
+
+    public Order(UUID id,
+                 String clientId,
+                 String symbol,
+                 OrderSide side,
+                 BigDecimal quantity,
+                 BigDecimal price,
+                 OrderStatus status,
+                 String idempotencyKey,
+                 Instant createdAt,
+                 Instant updatedAt) {
         this.id = Objects.requireNonNull(id, "id");
         this.clientId = Objects.requireNonNull(clientId, "clientId");
         this.symbol = Objects.requireNonNull(symbol, "symbol");
@@ -52,6 +66,7 @@ public final class Order {
         this.quantity = Objects.requireNonNull(quantity, "quantity");
         this.price = Objects.requireNonNull(price, "price");
         this.status = Objects.requireNonNull(status, "status");
+        this.idempotencyKey = Objects.requireNonNull(idempotencyKey, "idempotencyKey");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
         this.updatedAt = Objects.requireNonNull(updatedAt, "updatedAt");
     }
@@ -67,6 +82,15 @@ public final class Order {
                                   OrderSide side,
                                   BigDecimal quantity,
                                   BigDecimal price) {
+        return createNew(clientId, symbol, side, quantity, price, UUID.randomUUID().toString());
+    }
+
+    public static Order createNew(String clientId,
+                                  String symbol,
+                                  OrderSide side,
+                                  BigDecimal quantity,
+                                  BigDecimal price,
+                                  String idempotencyKey) {
         Instant now = Instant.now();
         return new Order(
                 UUID.randomUUID(),
@@ -76,6 +100,7 @@ public final class Order {
                 quantity,
                 price,
                 OrderStatus.NEW,
+                idempotencyKey,
                 now,
                 now
         );
@@ -108,6 +133,10 @@ public final class Order {
 
     public BigDecimal getPrice() {
         return price;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
     }
 
     public OrderStatus getStatus() {

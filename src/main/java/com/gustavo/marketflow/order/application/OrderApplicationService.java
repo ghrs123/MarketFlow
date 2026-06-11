@@ -1,5 +1,8 @@
 package com.gustavo.marketflow.order.application;
 
+import com.gustavo.marketflow.event.domain.OrderCreatedEvent;
+import com.gustavo.marketflow.event.domain.OrderValidatedEvent;
+import com.gustavo.marketflow.event.infrastructure.InMemoryEventBus;
 import com.gustavo.marketflow.order.domain.Order;
 import com.gustavo.marketflow.order.domain.OrderHistory;
 import com.gustavo.marketflow.order.domain.OrderHistoryRepository;
@@ -38,11 +41,17 @@ public class OrderApplicationService {
 
     private final OrderRepository orderRepository;
     private final OrderHistoryRepository orderHistoryRepository;
+    private final IdempotencyRegistry idempotencyRegistry;
+    private final InMemoryEventBus eventBus;
 
     public OrderApplicationService(OrderRepository orderRepository,
-                                   OrderHistoryRepository orderHistoryRepository) {
+                                   OrderHistoryRepository orderHistoryRepository,
+                                   IdempotencyRegistry idempotencyRegistry,
+                                   InMemoryEventBus eventBus) {
         this.orderRepository = orderRepository;
         this.orderHistoryRepository = orderHistoryRepository;
+        this.idempotencyRegistry = idempotencyRegistry;
+        this.eventBus = eventBus;
     }
 
     @Transactional
@@ -51,7 +60,28 @@ public class OrderApplicationService {
                              OrderSide side,
                              BigDecimal quantity,
                              BigDecimal price) {
-        Order order = Order.createNew(clientId, symbol, side, quantity, price);
+        return createOrder(clientId, symbol, side, quantity, price, UUID.randomUUID().toString());
+    }
+
+    /**
+     * Creates an order once for a client-provided idempotency key and returns the existing order on replay.
+     */
+    @Transactional
+    public Order createOrder(String clientId,
+                             String symbol,
+                             OrderSide side,
+                             BigDecimal quantity,
+                             BigDecimal price,
+                             String idempotencyKey) {
+        Order existingOrder = idempotencyRegistry.findExisting(idempotencyKey).orElse(null);
+        if (existingOrder != null) {
+            log.info("Duplicate order request resolved idempotently orderId={} idempotencyKey={}",
+                    existingOrder.getId(), idempotencyKey);
+            return existingOrder;
+        }
+
+        Order order = Order.createNew(clientId, symbol, side, quantity, price, idempotencyKey);
+        eventBus.publish(OrderValidatedEvent.now(order.getId()));
         Order saved = orderRepository.save(order);
         orderHistoryRepository.save(new OrderHistory(
                 UUID.randomUUID(),
@@ -63,6 +93,7 @@ public class OrderApplicationService {
                 null,
                 Instant.now()
         ));
+        eventBus.publish(OrderCreatedEvent.now(saved.getId()));
         log.info("Order created id={} clientId={} symbol={} side={} qty={} price={}",
                 saved.getId(), saved.getClientId(), saved.getSymbol(),
                 saved.getSide(), saved.getQuantity(), saved.getPrice());

@@ -15,6 +15,7 @@ final class OrderEntityMapper {
         entity.setSide(order.getSide());
         entity.setQuantity(order.getQuantity());
         entity.setPrice(order.getPrice());
+        entity.setIdempotencyKey(order.getIdempotencyKey());
         entity.setStatus(order.getStatus());
         entity.setCreatedAt(order.getCreatedAt());
         entity.setUpdatedAt(order.getUpdatedAt());
@@ -30,6 +31,7 @@ final class OrderEntityMapper {
                 entity.getQuantity(),
                 entity.getPrice(),
                 entity.getStatus(),
+                entity.getIdempotencyKey(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );

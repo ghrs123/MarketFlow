@@ -40,6 +40,9 @@ public class OrderEntity {
     @Column(nullable = false, precision = 18, scale = 8)
     private BigDecimal price;
 
+    @Column(name = "idempotency_key", nullable = false, unique = true, length = 128)
+    private String idempotencyKey;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private OrderStatus status;
@@ -100,6 +103,14 @@ public class OrderEntity {
 
     public void setPrice(BigDecimal price) {
         this.price = price;
+    }
+
+    public String getIdempotencyKey() {
+        return idempotencyKey;
+    }
+
+    public void setIdempotencyKey(String idempotencyKey) {
+        this.idempotencyKey = idempotencyKey;
     }
 
     public OrderStatus getStatus() {

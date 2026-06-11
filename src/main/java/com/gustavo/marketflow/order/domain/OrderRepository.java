@@ -19,6 +19,8 @@ public interface OrderRepository {
 
     Optional<Order> findById(UUID id);
 
+    Optional<Order> findByIdempotencyKey(String idempotencyKey);
+
     List<Order> findAll();
 
     List<Order> findByFilters(String clientId, OrderStatus status, int page, int size);

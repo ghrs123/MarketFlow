@@ -39,6 +39,12 @@ public class OrderJpaRepositoryAdapter implements OrderRepository {
     }
 
     @Override
+    public Optional<Order> findByIdempotencyKey(String idempotencyKey) {
+        return springDataOrderJpaRepository.findByIdempotencyKey(idempotencyKey)
+                .map(OrderEntityMapper::toDomain);
+    }
+
+    @Override
     public List<Order> findAll() {
         return springDataOrderJpaRepository.findAll(Sort.by(Sort.Direction.DESC, "createdAt")).stream()
                 .map(OrderEntityMapper::toDomain)

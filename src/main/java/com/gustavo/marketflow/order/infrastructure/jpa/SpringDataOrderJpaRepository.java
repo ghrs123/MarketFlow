@@ -1,6 +1,7 @@
 package com.gustavo.marketflow.order.infrastructure.jpa;
 
 import java.util.UUID;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -11,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 import com.gustavo.marketflow.order.domain.OrderStatus;
 
 public interface SpringDataOrderJpaRepository extends JpaRepository<OrderEntity, UUID> {
+
+    Optional<OrderEntity> findByIdempotencyKey(String idempotencyKey);
 
     @Query("""
             select o
