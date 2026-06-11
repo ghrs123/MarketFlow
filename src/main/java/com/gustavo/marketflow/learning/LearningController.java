@@ -373,4 +373,36 @@ public class LearningController {
                 ));
                 return body;
         }
+
+        @GetMapping("/fix")
+        public Map<String, Object> fix() {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "Simulated FIX message engine");
+                body.put("format", "Pipe-delimited tag=value String");
+                body.put("messageType", "35=D represents a simulated New Order Single");
+                body.put("supportedTags", List.of(
+                                "8 BeginString",
+                                "35 MsgType",
+                                "49 SenderCompID",
+                                "56 TargetCompID",
+                                "11 ClOrdID",
+                                "55 Symbol",
+                                "54 Side",
+                                "38 OrderQty",
+                                "40 OrdType",
+                                "44 Price",
+                                "52 SendingTime"
+                ));
+                body.put("limitations", List.of(
+                                "This phase does not implement a real FIX session.",
+                                "BodyLength, CheckSum, MsgSeqNum, resend and heartbeat handling are intentionally absent.",
+                                "QuickFIX/J remains a future production-oriented evolution."
+                ));
+                body.put("interviewTopics", List.of(
+                                "What is a FIX New Order Single?",
+                                "Why are FIX messages tag-based?",
+                                "How does this simulation differ from a real FIX engine?"
+                ));
+                return body;
+        }
 }

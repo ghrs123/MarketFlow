@@ -28,12 +28,12 @@ public class OpenApiConfiguration {
         return new OpenAPI()
                 .components(new Components())
                 .info(new Info()
-                        .title("MarketFlow Order API")
+                        .title("MarketFlow Order and FIX API")
                         .description("""
-                                REST API for creating, querying, queueing and processing market orders.
+                                REST API for market orders, concurrent processing and simulated FIX messages.
                                 Error responses follow RFC 7807 Problem Details.
                                 """)
-                        .version("5.0.0")
+                        .version("6.0.0")
                         .contact(new Contact()
                                 .name("MarketFlow Engineering"))
                         .license(new License()

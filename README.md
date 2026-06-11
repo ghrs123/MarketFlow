@@ -4,17 +4,16 @@
 > an incremental course. Each phase ships a complete vertical slice with
 > its own branch, tests and documentation.
 
-This repository is the implementation of Phase 5 of the
+This repository is the implementation of Phase 6 of the
 `MarketFlow Senior Java Cloud Lab` curriculum.
 
 ## Current phase
 
-**Phase 5 - Concurrency and Processing Engine**
+**Phase 6 - FIX Message Engine**
 
-This phase adds an in-process execution engine with a bounded
-`BlockingQueue`, named worker threads managed by `ExecutorService`,
-thread-safe execution statistics, MDC propagation to async workers and
-learning endpoints focused on concurrency concepts.
+This phase adds generation, persistence, parsing and explanation of
+simulated FIX messages. Messages are plain pipe-delimited Strings derived
+from persisted orders; this is intentionally not a real FIX session engine.
 
 ## Stack
 
@@ -23,6 +22,7 @@ learning endpoints focused on concurrency concepts.
 - Maven
 - PostgreSQL + Flyway
 - JUnit 5 + Mockito + MockMvc + AssertJ + Testcontainers + JaCoCo
+- Simulated FIX messages without an external FIX library
 - In-memory data structures: `PriorityQueue`, `LinkedHashMap`, `ConcurrentHashMap`, `BlockingQueue`
 - Concurrency primitives: `ExecutorService`, `CompletableFuture`, `AtomicLong`, `ReentrantLock`
 
@@ -30,6 +30,11 @@ learning endpoints focused on concurrency concepts.
 
 ```text
 src/main/java/com/gustavo/marketflow
+|- fix
+|  |- api              # FIX generation, lookup and explanation endpoints
+|  |- application      # Generator, parser, explainer and orchestration
+|  |- domain           # FIX message, tag catalogue and persistence port
+|  `- infrastructure   # PostgreSQL adapter
 |- execution
 |  |- api              # Queue and worker lifecycle endpoints
 |  |- application      # Processing engine, workers, transactional execution service
@@ -101,6 +106,12 @@ Run Phase 5 tests only:
 mvn -Dtest=OrderProcessingEngineTest,ExecutionControllerTest,ExecutionStatisticsTest,RaceConditionDemoTest,AtomicCounterDemoTest,CompletableFutureDemoTest test
 ```
 
+Run Phase 6 tests only:
+
+```bash
+mvn "-Dtest=FixMessageGeneratorTest,FixMessageParserTest,FixMessageExplainerTest,FixMessageApplicationServiceTest,FixControllerTest,FixMessageRepositoryIntegrationTest" test
+```
+
 Generate the JaCoCo report:
 
 ```bash
@@ -127,6 +138,11 @@ tests because they start a real PostgreSQL container.
 | POST | `/execution/start` | Start execution workers |
 | POST | `/execution/stop` | Stop execution workers |
 | GET | `/execution/stats` | Read execution-engine statistics |
+| POST | `/orders/{id}/fix-message` | Generate and persist a simulated FIX message |
+| GET | `/orders/{id}/fix-message` | Read the generated FIX message |
+| GET | `/orders/{id}/fix-explanation` | Explain every persisted FIX tag |
+| POST | `/fix/explain` | Parse and explain a caller-provided FIX-like String |
+| GET | `/learning/fix` | Explain the simulation and real FIX differences |
 | GET | `/swagger-ui.html` | Swagger UI |
 | GET | `/v3/api-docs` | OpenAPI JSON |
 | GET | `/health/custom` | Application-owned health summary |
@@ -207,6 +223,34 @@ Stop workers:
 curl -i -X POST http://localhost:8080/execution/stop
 ```
 
+Generate a simulated FIX message:
+
+```bash
+curl -i -X POST http://localhost:8080/orders/{id}/fix-message
+```
+
+Read the persisted message:
+
+```bash
+curl -s http://localhost:8080/orders/{id}/fix-message | jq
+```
+
+Explain the persisted message:
+
+```bash
+curl -s http://localhost:8080/orders/{id}/fix-explanation | jq
+```
+
+Explain a raw simulated FIX message:
+
+```bash
+curl -s -X POST http://localhost:8080/fix/explain \
+  -H "Content-Type: application/json" \
+  -d '{
+    "rawMessage": "8=FIX.4.4|35=D|49=MARKETFLOW|56=SIMULATED_BROKER|11=demo-1|55=AAPL|54=1|38=100|40=2|44=150.25|52=2026-01-15T10:30:00Z"
+  }' | jq
+```
+
 Read the order book snapshot:
 
 ```bash
@@ -239,14 +283,14 @@ curl -s http://localhost:8080/v3/api-docs | jq
 - `docs/phase-03-testing-quality-api-docs.md`
 - `docs/phase-04-data-structures-order-book.md`
 - `docs/phase-05-concurrency-processing-engine.md`
+- `docs/phase-06-fix-message-engine.md`
 - `CONTRIBUTING.md`
 
 ## Roadmap
 
-Future phases (per the curriculum): FIX message engine ->
-event-driven + retry + DLQ + idempotency -> external messaging ->
+Future phases (per the curriculum): event-driven + retry + DLQ + idempotency -> external messaging ->
 observability -> security -> resilience -> caching/scheduling ->
 Docker Compose -> Kubernetes -> performance/load tests -> CI/CD.
 
-See `docs/phase-05-concurrency-processing-engine.md` for the in-depth
+See `docs/phase-06-fix-message-engine.md` for the in-depth
 narrative of this phase.

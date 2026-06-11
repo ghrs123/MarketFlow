@@ -54,6 +54,35 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    @ExceptionHandler(FixMessageNotFoundException.class)
+    public ProblemDetail handleFixMessageNotFound(FixMessageNotFoundException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        problem.setTitle("FIX message not found");
+        problem.setType(URI.create("https://marketflow.local/errors/fix-message-not-found"));
+        problem.setProperty("orderId", ex.getOrderId().toString());
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
+
+    @ExceptionHandler(FixMessageAlreadyExistsException.class)
+    public ProblemDetail handleFixMessageAlreadyExists(FixMessageAlreadyExistsException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("FIX message already exists");
+        problem.setType(URI.create("https://marketflow.local/errors/fix-message-already-exists"));
+        problem.setProperty("orderId", ex.getOrderId().toString());
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidFixMessageException.class)
+    public ProblemDetail handleInvalidFixMessage(InvalidFixMessageException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Invalid FIX message");
+        problem.setType(URI.create("https://marketflow.local/errors/invalid-fix-message"));
+        problem.setProperty("timestamp", Instant.now().toString());
+        return problem;
+    }
+
     @ExceptionHandler(OrderAlreadyInBookException.class)
     public ProblemDetail handleOrderAlreadyInBook(OrderAlreadyInBookException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());

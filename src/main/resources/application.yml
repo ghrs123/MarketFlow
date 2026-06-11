@@ -53,8 +53,8 @@ management:
 info:
   app:
     name: marketflow-lab
-    phase: 05-concurrency-processing-engine
-    description: MarketFlow Senior Java Cloud Lab - Phase 5
+    phase: 06-fix-message-engine
+    description: MarketFlow Senior Java Cloud Lab - Phase 6
 
 marketflow:
   execution:
