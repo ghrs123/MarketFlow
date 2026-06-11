@@ -165,7 +165,14 @@ mvn -Dtest="CorrelationIdFilterTest,MdcTaskDecoratorTest,OrderMetricsServiceTest
 mvn -Dtest="SecurityIntegrationTest,KeycloakRealmRoleConverterTest,AuthenticatedUserMdcFilterTest" test
 
 # Phase 10: resilience
-mvn -Dtest="ResiliencePatternsTest,ExternalServiceControllerTest" test
+mvn -Dtest="ResiliencePatternsTest,ResilienceApplicationIntegrationTest,ExternalServiceControllerTest,ExecutionControllerTest,OrderProcessingEngineTest" test
+```
+
+Latest verified result:
+
+```text
+Tests run: 157, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
 ```
 
 Generate JaCoCo coverage report:
@@ -196,6 +203,8 @@ Import `observability/grafana/marketflow-dashboard.json` to see:
 - Order queue size and DLQ size
 - Processing latency p95
 - HTTP request rate by status
+- Circuit breaker state
+- Rate limiter available permissions
 
 ## Security model
 
@@ -214,7 +223,7 @@ Port 8081 (Actuator/metrics) is public — protect at network level in productio
 | Pattern | Where | Config |
 |---|---|---|
 | Circuit Breaker | `OrderExecutionService` (broker calls) | 50% failure threshold, 5s open window |
-| Retry | `FixMessageApplicationService` | 3 attempts, exponential backoff 100ms→2s |
+| Retry | `FixMessageApplicationService` | 3 attempts, exponential waits of 100ms and 200ms |
 | Rate Limiter | `OrderController` (POST /orders) | 5 requests/second |
 | Bulkhead | Order processing | 4 concurrent calls max |
 
@@ -250,6 +259,10 @@ Port 8081 (Actuator/metrics) is public — protect at network level in productio
 | GET | `/v3/api-docs` | Public | OpenAPI JSON |
 | GET | `/actuator/health` | Public | Spring Boot health |
 | GET | `/actuator/prometheus` | Port 8081 | Prometheus metrics |
+| GET | `/learning/resilience` | Public | Overview of all resilience patterns |
+| GET | `/learning/circuit-breaker` | Public | Circuit breaker states and fallback |
+| GET | `/learning/rate-limit` | Public | Rate limiting behaviour |
+| GET | `/learning/bulkhead` | Public | Processing isolation and capacity |
 
 ## curl examples
 
@@ -294,6 +307,22 @@ curl -s http://localhost:8080/events \
 # Inspect DLQ
 curl -s http://localhost:8080/execution/dlq \
   -H "Authorization: Bearer $TOKEN" | jq
+
+# Execute an order through the simulated broker
+curl -s -X POST http://localhost:8080/orders/{id}/execute-with-broker \
+  -H "Authorization: Bearer $TOKEN" | jq
+
+# Read live simulated market data
+curl -s http://localhost:8080/external/market-data/AAPL \
+  -H "Authorization: Bearer $TOKEN" | jq
+
+# Trigger the market-data fallback
+curl -s http://localhost:8080/external/market-data/MARKET_FAIL \
+  -H "Authorization: Bearer $TOKEN" | jq
+
+# Inspect Resilience4j metrics on the management port
+curl -s http://localhost:8081/actuator/prometheus \
+  | grep resilience4j
 ```
 
 ## Documentation

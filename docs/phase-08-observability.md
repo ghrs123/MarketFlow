@@ -51,8 +51,8 @@ mvn spring-boot:run
 ## Demonstrate
 
 ```bash
-curl -i -H "X-Correlation-Id: phase-08-demo" http://localhost:8080/actuator/health
-curl -s http://localhost:8080/actuator/prometheus
+curl -i -H "X-Correlation-Id: phase-08-demo" http://localhost:8081/actuator/health
+curl -s http://localhost:8081/actuator/prometheus
 curl -s http://localhost:8080/monitoring/summary
 curl -s http://localhost:8080/learning/logging
 curl -s http://localhost:8080/learning/monitoring

@@ -15,6 +15,10 @@ failures and local capacity exhaustion:
 The external services remain in-process simulations. There is no Kafka,
 Docker Compose or Kubernetes configuration in this phase.
 
+The original curriculum describes this capability as Phase 11. The repository
+delivers it as Phase 10 because security was completed as Phase 9 in the
+implemented branch sequence.
+
 ## Architecture
 
 ```text
@@ -70,9 +74,10 @@ The defaults are in `application.yml` under `resilience4j` and
 `marketflow.resilience`. Important settings:
 
 - broker circuit breaker: count window `6`, minimum calls `3`, threshold `50%`
-- FIX retry: `3` attempts, `100ms` initial wait, multiplier `2`
+- FIX retry: `3` attempts, waits of `100ms` and `200ms`, multiplier `2`
 - order rate limiter: `5` permits every `1s`, no wait
 - processing bulkhead: `4` concurrent calls, no wait
+- Actuator and Prometheus: management port `8081`
 
 ## How To Run
 
@@ -102,6 +107,9 @@ curl "http://localhost:8080/learning/resilience"
 curl "http://localhost:8080/learning/circuit-breaker"
 curl "http://localhost:8080/learning/rate-limit"
 curl "http://localhost:8080/learning/bulkhead"
+
+curl "http://localhost:8081/actuator/prometheus" \
+  | grep resilience4j
 ```
 
 ## Metrics
@@ -116,16 +124,61 @@ GET /actuator/prometheus
 Relevant Prometheus families include circuit breaker state and calls, retry
 calls, rate limiter permissions and bulkhead concurrent-call capacity.
 
+Examples:
+
+```text
+resilience4j_circuitbreaker_state
+resilience4j_circuitbreaker_calls_seconds
+resilience4j_retry_calls
+resilience4j_ratelimiter_available_permissions
+resilience4j_bulkhead_available_concurrent_calls
+```
+
 ## How To Test
 
 ```bash
 mvn test
 mvn package
+
+mvn -Dtest="ResiliencePatternsTest,ResilienceApplicationIntegrationTest,ExternalServiceControllerTest,ExecutionControllerTest,OrderProcessingEngineTest" test
 ```
 
 The focused resilience suite verifies circuit opening, retry recovery, rate
 limit exhaustion, bulkhead rejection, broker response mapping and market-data
 responses.
+
+Latest full-suite evidence:
+
+```text
+Tests run: 157, Failures: 0, Errors: 0, Skipped: 0
+BUILD SUCCESS
+```
+
+## Expected Logs
+
+Successful broker calls record the order ID and generated broker reference.
+Handled dependency failures use `WARN` and identify only the dependency class,
+never an access token, request body or internal stack trace.
+
+Representative messages:
+
+```text
+Order {orderId} accepted by simulated broker reference={brokerReference}
+Broker fallback used for order {orderId} cause={exceptionType}
+FIX generation retry exhausted for order {orderId} cause={exceptionType}
+Market data fallback used for symbol={symbol} cause={exceptionType}
+Order {orderId} rejected by processing bulkhead
+```
+
+## HTTP Failure Contract
+
+| Scenario | HTTP/result |
+| --- | --- |
+| Order creation rate exceeded | `429` RFC 7807 `order-rate-limit` |
+| FIX retries exhausted | `503` RFC 7807 `external-service-unavailable` |
+| Broker unavailable | `200` degraded result with `fallback=true` |
+| Market data unavailable | `200` stale quote with `fallback=true` |
+| Missing order | Existing `404` domain error, not hidden by fallback |
 
 ## Interview Narrative
 
@@ -166,6 +219,8 @@ worker boundary makes the protection explicit and testable.
 - [x] Learning endpoints implemented
 - [x] Metrics exposed through Actuator and Prometheus
 - [x] Unit and controller tests added
+- [x] Spring AOP integration tests added
+- [x] Full suite passes with 157 tests
 - [x] README updated
 
 ## Suggested Commits
