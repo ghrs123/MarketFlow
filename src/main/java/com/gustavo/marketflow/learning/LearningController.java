@@ -459,4 +459,53 @@ public class LearningController {
                                                 "How do you prevent a retry storm?"
                                 ));
         }
+
+        @GetMapping("/logging")
+        public Map<String, Object> logging() {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "Structured logging and correlation");
+                body.put("correlationId", MDC.get("correlationId"));
+                body.put("principles", List.of(
+                                "A servlet filter validates or generates X-Correlation-Id for every request.",
+                                "MDC adds correlationId and business identifiers to every structured log line.",
+                                "TaskDecorator captures and restores MDC around work submitted to managed executors.",
+                                "Audit events use a dedicated logger and never include request bodies or credentials."
+                ));
+                return body;
+        }
+
+        @GetMapping("/monitoring")
+        public Map<String, Object> monitoring() {
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "Metrics, health and operational diagnostics");
+                body.put("signals", List.of(
+                                "Counters describe business outcomes such as created, executed, retried and dead-lettered orders.",
+                                "Timers measure creation, processing, FIX generation and HTTP request latency.",
+                                "Health indicators report database, order queue, DLQ and processing engine state.",
+                                "Prometheus scrapes /actuator/prometheus and Grafana visualizes the same time series."
+                ));
+                body.put("endpoints", List.of(
+                                "GET /actuator/health",
+                                "GET /actuator/prometheus",
+                                "GET /monitoring/summary"
+                ));
+                return body;
+        }
+
+        @GetMapping("/performance/jvm")
+        public Map<String, Object> jvmPerformance() {
+                Runtime runtime = Runtime.getRuntime();
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("topic", "JVM runtime signals");
+                body.put("availableProcessors", runtime.availableProcessors());
+                body.put("usedMemoryBytes", runtime.totalMemory() - runtime.freeMemory());
+                body.put("committedMemoryBytes", runtime.totalMemory());
+                body.put("maxMemoryBytes", runtime.maxMemory());
+                body.put("guidance", List.of(
+                                "Correlate heap pressure with allocation and garbage collection metrics.",
+                                "Use thread, CPU and queue saturation together before changing pool sizes.",
+                                "Prefer trends and service-level objectives over isolated metric snapshots."
+                ));
+                return body;
+        }
 }
